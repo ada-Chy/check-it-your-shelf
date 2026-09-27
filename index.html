@@ -9,7 +9,7 @@
 
   <!-- PWA Manifest & App Icon -->
   <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="icon.png">
+  <link rel="apple-touch-icon" href="Icon.png">
 
   <title>Check It YourShelf</title>
   <link rel="stylesheet" href="style.css">
@@ -88,9 +88,16 @@
               <input type="text" id="name" list="product-suggestions" placeholder="Type or select item..." required>
               <datalist id="product-suggestions"></datalist>
             </div>
+          </div>
+
+          <div class="form-row">
             <div class="input-group">
               <label for="brand">Brand / 品牌</label>
               <input type="text" id="brand" placeholder="e.g. CeraVe, Tide">
+            </div>
+            <div class="input-group">
+              <label for="size">Volume / Size / 容量或尺寸 🧴</label>
+              <input type="text" id="size" placeholder="e.g. 100ml, 50g, 250ml">
             </div>
           </div>
 
@@ -229,7 +236,7 @@
           </div>
 
           <div class="search-filter-bar">
-            <input type="text" id="search-input" placeholder="Search product, brand, batch, notes, location..." onkeyup="renderItems()" oninput="renderItems()">
+            <input type="text" id="search-input" placeholder="Search product, brand, size, batch, notes..." onkeyup="renderItems()" oninput="renderItems()">
             <select id="filter-category" onchange="onFilterCategoryChange()">
               <option value="ALL">All Categories</option>
             </select>
