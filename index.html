@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Check It YourShelf">
+
+  <!-- PWA Manifest & App Icon -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="Picture%201.png">
+
+  <title>Check It YourShelf</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>CHECK IT YOURSHELF!</h1>
+      <p class="subtitle">DON'T GUESS WHAT'S IN STOCK • HONG KONG</p>
+      <button type="button" id="notify-toggle-btn" class="btn-sm" onclick="toggleNotificationPermission()" style="margin-top: 10px;">
+        🔔 Enable Notifications
+      </button>
+    </header>
+
+    <!-- Top Navigation Bar for Sub-pages -->
+    <div id="subpage-nav" style="display: none; margin-bottom: 12px;">
+      <button type="button" class="btn-sm" onclick="showView('home')">⬅️ Back to Home / 返回首頁</button>
+    </div>
+
+    <main>
+      <!-- 1. Home / Front Navigation Screen -->
+      <section id="view-home" class="card-section">
+        <h2>Dashboard & Navigation / 概覽與導覽</h2>
+        
+        <!-- Summary Dashboard Widgets -->
+        <div class="dashboard-grid">
+          <div class="dash-card" onclick="showCatalogWithFilter('ALL')">
+            <span class="dash-num" id="dash-total">0</span>
+            <span class="dash-label">Active Items</span>
+          </div>
+          <div class="dash-card dash-warning" onclick="showCatalogWithFilter('LOW_STOCK')">
+            <span class="dash-num" id="dash-low">0</span>
+            <span class="dash-label">Low Stock ⚠️</span>
+          </div>
+          <div class="dash-card dash-danger" onclick="showCatalogWithFilter('EXPIRING')">
+            <span class="dash-num" id="dash-expiring">0</span>
+            <span class="dash-label">Expiring Soon ⌛</span>
+          </div>
+          <div class="dash-card" onclick="showCatalogWithFilter('FINISHED')">
+            <span class="dash-num" id="dash-finished">0</span>
+            <span class="dash-label">Finished Batches</span>
+          </div>
+        </div>
+
+        <p class="subtitle" style="margin: 16px 0 10px 0; font-weight: 600;">Main Menu / 選單</p>
+
+        <div class="nav-grid">
+          <button type="button" class="nav-card-btn" onclick="showView('add')">
+            <span class="nav-icon">➕</span>
+            <strong>1. Add New Item / Batch</strong>
+            <small>新增產品或批號資訊</small>
+          </button>
+
+          <button type="button" class="nav-card-btn" onclick="showView('browse')">
+            <span class="nav-icon">📂</span>
+            <strong>2. Browse Categories</strong>
+            <small>按主分類及子分類分層瀏覽</small>
+          </button>
+
+          <button type="button" class="nav-card-btn" onclick="showView('catalog')">
+            <span class="nav-icon">📦</span>
+            <strong>3. All Items Catalog</strong>
+            <small>檢視所有物品與存貨清單</small>
+          </button>
+        </div>
+      </section>
+
+      <!-- 2. Add / Edit Item Form Screen -->
+      <section id="view-add" class="card-section" style="display: none;">
+        <h2 id="form-heading">Add Product Batch / 新增產品批號</h2>
+        <form id="item-form" autocomplete="off">
+          
+          <div class="form-row">
+            <div class="input-group">
+              <label for="name">Product Name / 產品名稱 *</label>
+              <input type="text" id="name" list="product-suggestions" placeholder="Type or select item..." required>
+              <datalist id="product-suggestions"></datalist>
+            </div>
+            <div class="input-group">
+              <label for="brand">Brand / 品牌</label>
+              <input type="text" id="brand" placeholder="e.g. CeraVe, Tide">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="input-group">
+              <label for="category">Category / 主分類 *</label>
+              <select id="category" required onchange="onCategoryChange()">
+                <option value="">-- Select Category --</option>
+              </select>
+            </div>
+            <div class="input-group">
+              <label for="sub-category">Sub-category / 子分類</label>
+              <select id="sub-category" onchange="onSubCategoryChange()">
+                <option value="">-- Select Sub-category --</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row" style="margin-bottom: 8px;">
+            <input type="text" id="custom-category" placeholder="Or type a new main category..." style="display: none;">
+            <input type="text" id="custom-sub-category" placeholder="Or type a new sub-category..." style="display: none;">
+          </div>
+
+          <div class="form-row">
+            <div class="input-group">
+              <label for="low-threshold">Low Stock Alert Below / 補貨警戒數量</label>
+              <input type="number" id="low-threshold" value="1" min="0">
+            </div>
+          </div>
+
+          <fieldset class="form-fieldset">
+            <legend>Batch Specific Details / 批號個別資訊</legend>
+            
+            <div class="form-row">
+              <div class="input-group">
+                <label for="batch-code">Batch / Lot Code / 批號</label>
+                <input type="text" id="batch-code" placeholder="e.g. 21T400">
+              </div>
+              <div class="input-group">
+                <label for="quantity">Quantity / 數量</label>
+                <input type="number" id="quantity" value="1" min="0">
+              </div>
+              <div class="input-group">
+                <label for="status">Status / 狀態</label>
+                <select id="status">
+                  <option value="In Stock">In Stock / 有存貨</option>
+                  <option value="Using">Using / 使用中</option>
+                  <option value="Finished">Finished / 已用完</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="input-group">
+                <label for="purchase-date">Purchase Date / 購買日期</label>
+                <input type="date" id="purchase-date">
+              </div>
+              <div class="input-group">
+                <label for="opened-date">Opened Date / 開封日</label>
+                <input type="date" id="opened-date">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="input-group">
+                <label for="expiry-date">Expiry Date / 到期日</label>
+                <input type="date" id="expiry-date">
+              </div>
+              <div class="input-group">
+                <label for="pao">PAO (Months / 月) 🧴</label>
+                <input type="number" id="pao" placeholder="e.g. 6, 12, 24" min="0">
+              </div>
+            </div>
+
+            <div class="input-group">
+              <label for="location">Storage Location / 存放位置</label>
+              <input type="text" id="location" placeholder="e.g. Bathroom Cabinet, Pantry Shelf 2">
+            </div>
+          </fieldset>
+
+          <div class="form-row">
+            <div class="input-group">
+              <label for="worth">Repurchase Rating / 值得再買嗎？</label>
+              <select id="worth">
+                <option value="">-- Select --</option>
+                <option value="Yes">Yes / 值得</option>
+                <option value="No">No / 不值得</option>
+                <option value="Maybe">Maybe / 再看看</option>
+              </select>
+            </div>
+            <div class="input-group">
+              <label for="worth-remark">Notes / Remarks / 備註</label>
+              <input type="text" id="worth-remark" placeholder="e.g. Texture is heavy, bought on sale">
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" id="submit-btn" class="btn-primary">Add Batch / 新增批號</button>
+            <button type="button" id="cancel-btn" class="btn-secondary" style="display:none;" onclick="resetForm()">Cancel / 取消</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- 3. Category & Sub-category Guided Browser Screen -->
+      <section id="view-browse" class="card-section" style="display: none;">
+        <h2>Browse Categories / 分類瀏覽</h2>
+        
+        <div id="browse-step-1">
+          <label style="font-weight:700; font-size:13px; color:var(--primary-blue);">Step 1: Choose Main Category / 選擇主分類</label>
+          <div id="main-cat-buttons" class="cat-grid"></div>
+        </div>
+
+        <div id="browse-step-2" style="display: none; margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--shadow-blue);">
+          <label style="font-weight:700; font-size:13px; color:var(--primary-blue);">Step 2: Choose Sub-category / 選擇子分類</label>
+          <div id="sub-cat-buttons" class="cat-grid"></div>
+        </div>
+
+        <div id="browse-results" style="margin-top: 16px;"></div>
+      </section>
+
+      <!-- 4. Inventory Catalog Screen -->
+      <div id="view-catalog" style="display: none;">
+        <section class="card-section">
+          <h2>Manage Categories / 管理分類</h2>
+          <div id="categories-list"></div>
+        </section>
+
+        <section class="card-section">
+          <div class="list-header">
+            <h2>Inventory Catalog / 物品清單</h2>
+            <div class="data-actions">
+              <button type="button" class="btn-sm" onclick="exportData()">Export JSON</button>
+              <button type="button" class="btn-sm" onclick="document.getElementById('import-file').click()">Import JSON</button>
+              <input type="file" id="import-file" style="display:none;" onchange="importData(event)" accept=".json">
+            </div>
+          </div>
+
+          <div class="search-filter-bar">
+            <input type="text" id="search-input" placeholder="Search product, brand, batch, notes, location..." onkeyup="renderItems()" oninput="renderItems()">
+            <select id="filter-category" onchange="onFilterCategoryChange()">
+              <option value="ALL">All Categories</option>
+            </select>
+            <select id="filter-sub-category" onchange="renderItems()">
+              <option value="ALL">All Sub-categories</option>
+            </select>
+          </div>
+
+          <!-- Location Filter Chips -->
+          <div class="location-chips-wrapper">
+            <span style="font-size: 11px; font-weight: 700; color: var(--text-muted);">📍 Location Filter:</span>
+            <div id="location-chips" class="tabs" style="margin-bottom: 0;"></div>
+          </div>
+
+          <div class="tabs" style="margin-top: 10px;">
+            <button type="button" class="tab-btn active" onclick="setTab('ALL', this)">All Products</button>
+            <button type="button" class="tab-btn" onclick="setTab('LOW_STOCK', this)">⚠️ Low Stock</button>
+            <button type="button" class="tab-btn" onclick="setTab('EXPIRING', this)">⌛ Expiring Soon</button>
+            <button type="button" class="tab-btn" onclick="setTab('FINISHED', this)">Finished Batches</button>
+          </div>
+
+          <div id="items-list"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(err => console.log('SW registration failed', err));
+    }
+  </script>
+</body>
+</html>
