@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Check It YourShelf">
   <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="Picture%201.png">
+  <link rel="apple-touch-icon" href="icon.png">
   <title>Check It YourShelf</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -17,8 +17,7 @@
       <h1>CHECK IT YOURSHELF!</h1>
       <p class="subtitle">DON'T GUESS WHAT'S IN STOCK • HONG KONG</p>
       <div class="header-actions">
-        <button type="button" id="notify-toggle-btn" class="btn-sm" onclick="toggleNotificationPermission()">🔔 Notifications</button>
-        <button type="button" class="btn-sm" onclick="showView('settings')">⚙️</button>
+        <button type="button" class="btn-sm" onclick="showView('settings')">⚙️ Settings</button>
       </div>
     </header>
 
@@ -35,6 +34,13 @@
       <!-- HOME -->
       <section id="view-home" class="card-section">
         <h2>Dashboard / 概覽</h2>
+        
+        <div id="welcome-box" class="welcome-box" style="display:none;">
+          <strong>👋 Welcome!</strong>
+          <p>Start by adding your first product. Tap <strong>➕ Add</strong> above.</p>
+          <p style="margin-top:8px;font-size:13px;">You can also import a previous backup in Settings.</p>
+        </div>
+
         <div class="dashboard-grid">
           <div class="dash-card" onclick="showCatalogWithFilter('ALL')">
             <span class="dash-num" id="dash-total">0</span>
@@ -63,22 +69,22 @@
         <div class="nav-grid">
           <button type="button" class="nav-card-btn" onclick="showView('add')">
             <span class="nav-icon">➕</span>
-            <strong>1. Add New Item / Batch</strong>
+            <strong>Add New Item / Batch</strong>
             <small>新增產品或批號</small>
           </button>
           <button type="button" class="nav-card-btn" onclick="showView('browse')">
             <span class="nav-icon">📂</span>
-            <strong>2. Browse Categories</strong>
+            <strong>Browse by Category</strong>
             <small>按分類瀏覽</small>
           </button>
           <button type="button" class="nav-card-btn" onclick="showView('catalog')">
             <span class="nav-icon">📦</span>
-            <strong>3. All Items Catalog</strong>
-            <small>完整清單</small>
+            <strong>Full Catalog</strong>
+            <small>完整物品清單</small>
           </button>
           <button type="button" class="nav-card-btn" onclick="showView('shopping')">
             <span class="nav-icon">🛒</span>
-            <strong>4. Shopping List</strong>
+            <strong>Shopping List</strong>
             <small>低庫存補貨清單</small>
           </button>
         </div>
@@ -230,10 +236,8 @@
           <div class="list-header">
             <h2>Inventory Catalog</h2>
             <div class="data-actions">
-              <button type="button" class="btn-sm" onclick="exportData('json')">JSON</button>
-              <button type="button" class="btn-sm" onclick="exportData('csv')">CSV</button>
-              <button type="button" class="btn-sm" onclick="document.getElementById('import-file').click()">Import</button>
-              <input type="file" id="import-file" style="display:none;" onchange="importData(event)" accept=".json,.csv">
+              <button type="button" class="btn-sm" onclick="exportData('json')">Export JSON</button>
+              <button type="button" class="btn-sm" onclick="exportData('csv')">Export CSV</button>
             </div>
           </div>
           <div class="search-filter-bar">
@@ -262,37 +266,52 @@
       <!-- SHOPPING LIST -->
       <section id="view-shopping" class="card-section" style="display:none;">
         <h2>🛒 Shopping List / 補貨清單</h2>
-        <p class="subtitle">Generated from items currently below their low-stock threshold.</p>
+        <p class="subtitle">Items currently below their low-stock threshold.</p>
         <div id="shopping-list"></div>
-        <button type="button" class="btn-primary" style="margin-top:16px;width:100%;" onclick="exportShoppingList()">Export List as Text</button>
+        <button type="button" class="btn-primary" style="margin-top:16px;width:100%;" onclick="exportShoppingList()">Export as Text</button>
       </section>
 
       <!-- ARCHIVE -->
       <section id="view-archive" class="card-section" style="display:none;">
         <h2>📦 Archive / 已封存</h2>
-        <p class="subtitle">Finished products kept for history & consumption insights.</p>
+        <p class="subtitle">Finished products kept for history.</p>
         <div id="archive-list"></div>
       </section>
 
       <!-- SETTINGS -->
       <section id="view-settings" class="card-section" style="display:none;">
         <h2>⚙️ Settings & Data</h2>
+
         <div class="settings-group">
-          <h3>Backup</h3>
+          <h3>Backup & Restore</h3>
           <p class="subtitle">Last backup: <span id="last-backup-date">Never</span></p>
-          <button type="button" class="btn-sm" onclick="createBackup()">Create Backup Now</button>
-          <button type="button" class="btn-sm" onclick="showBackups()">View Local Backups</button>
+          <div class="settings-buttons">
+            <button type="button" class="btn-sm btn-block" onclick="createBackup()">Create Local Backup</button>
+            <button type="button" class="btn-sm btn-block" onclick="exportData('json')">Download Full Backup (JSON)</button>
+            <button type="button" class="btn-sm btn-block" onclick="document.getElementById('import-file').click()">Import Backup (JSON)</button>
+            <input type="file" id="import-file" style="display:none;" accept=".json,application/json" onchange="importData(event)">
+          </div>
+          <p class="help-text">
+            <strong>iPhone tip:</strong> After tapping Import, choose “Browse” → Files app, then select your .json backup file.
+          </p>
         </div>
+
         <div class="settings-group">
-          <h3>Notifications</h3>
-          <p id="notify-status">Status: Checking...</p>
-          <button type="button" class="btn-sm" onclick="toggleNotificationPermission()">Toggle Permission</button>
-          <button type="button" class="btn-sm" onclick="checkAndNotify(true)">Test Check Now</button>
+          <h3>Export Options</h3>
+          <div class="settings-buttons">
+            <button type="button" class="btn-sm btn-block" onclick="exportData('csv')">Export as CSV (Excel)</button>
+          </div>
         </div>
+
         <div class="settings-group">
-          <h3>Data Health</h3>
-          <button type="button" class="btn-sm" onclick="exportData('json')">Full JSON Export</button>
-          <button type="button" class="btn-sm" onclick="exportData('csv')">CSV Export</button>
+          <h3>How to use</h3>
+          <div class="help-box">
+            <p>1. Tap <strong>➕ Add</strong> to record a product + batch.</p>
+            <p>2. Use the <strong>+ / −</strong> buttons on each batch to adjust quantity quickly.</p>
+            <p>3. Tap <strong>Using</strong> or <strong>Finish</strong> to change status.</p>
+            <p>4. Check <strong>🛒 List</strong> for items that need restocking.</p>
+            <p>5. Regularly create a backup in Settings (recommended every 1–2 weeks).</p>
+          </div>
         </div>
       </section>
     </main>
