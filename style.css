@@ -33,11 +33,11 @@ body {
 
 header {
   text-align: center;
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
 
 header h1 {
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 800;
   color: var(--primary-blue);
   letter-spacing: -0.5px;
@@ -51,7 +51,51 @@ header h1 {
   font-weight: 500;
 }
 
-/* Dashboard Summary Cards */
+.header-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* Sticky Nav */
+.main-nav-bar {
+  display: flex;
+  background: var(--card-bg);
+  border-radius: 14px;
+  padding: 4px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 12px rgba(29, 100, 216, 0.08);
+  border: 1px solid #edf2f9;
+  position: sticky;
+  top: 8px;
+  z-index: 100;
+  overflow-x: auto;
+}
+
+.nav-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 10px 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: center;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  min-width: 60px;
+}
+
+.nav-tab.active {
+  background: var(--primary-blue);
+  color: #ffffff;
+  box-shadow: 0 3px 8px rgba(29, 100, 216, 0.25);
+}
+
+/* Dashboard */
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -69,12 +113,9 @@ header h1 {
   align-items: center;
   cursor: pointer;
   box-shadow: 0 4px 12px rgba(29, 100, 216, 0.05);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-.dash-card:active {
-  transform: translateY(1px);
-}
+.dash-card:active { transform: translateY(1px); }
 
 .dash-num {
   font-size: 24px;
@@ -92,7 +133,18 @@ header h1 {
 .dash-warning .dash-num { color: #ff9500; }
 .dash-danger .dash-num { color: #ff3b30; }
 
-/* Home Navigation Screen Buttons */
+.insight-box {
+  background: #eef6ff;
+  border: 1px solid #c5dbff;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.insight-box strong { color: var(--primary-blue); }
+
+/* Nav cards */
 .nav-grid {
   display: flex;
   flex-direction: column;
@@ -110,31 +162,13 @@ header h1 {
   cursor: pointer;
   text-align: left;
   box-shadow: 0 4px 12px rgba(29, 100, 216, 0.05);
-  transition: background-color 0.15s ease;
 }
 
-.nav-card-btn:active {
-  background: #edf3fd;
-}
+.nav-card-btn:active { background: #edf3fd; }
+.nav-icon { font-size: 24px; margin-bottom: 4px; }
+.nav-card-btn strong { font-size: 15px; color: var(--primary-blue); font-weight: 700; }
+.nav-card-btn small { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 
-.nav-icon {
-  font-size: 24px;
-  margin-bottom: 4px;
-}
-
-.nav-card-btn strong {
-  font-size: 15px;
-  color: var(--primary-blue);
-  font-weight: 700;
-}
-
-.nav-card-btn small {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-top: 2px;
-}
-
-/* Category Browser Grid */
 .cat-grid {
   display: flex;
   flex-wrap: wrap;
@@ -142,12 +176,7 @@ header h1 {
   margin-top: 8px;
 }
 
-/* Location Chips */
-.location-chips-wrapper {
-  margin-bottom: 8px;
-}
-
-/* Card Sections */
+/* Cards */
 .card-section {
   background: var(--card-bg);
   padding: 18px;
@@ -165,7 +194,7 @@ h2 {
   margin-bottom: 12px;
 }
 
-/* Form Layout - Vertical Stacking for Mobile */
+/* Forms */
 #item-form {
   display: flex;
   flex-direction: column;
@@ -189,7 +218,6 @@ label {
   font-size: 12px;
   font-weight: 700;
   color: var(--text-dark);
-  word-break: break-word;
 }
 
 input, select {
@@ -210,7 +238,6 @@ input:focus, select:focus {
   box-shadow: 0 0 0 3px rgba(29, 100, 216, 0.15);
 }
 
-/* Fieldset Container */
 .form-fieldset {
   border: 1.5px dashed var(--shadow-blue);
   padding: 14px;
@@ -247,9 +274,7 @@ input:focus, select:focus {
   box-shadow: 0 4px 10px rgba(29, 100, 216, 0.25);
 }
 
-.btn-primary:active {
-  background-color: var(--primary-blue-hover);
-}
+.btn-primary:active { background-color: var(--primary-blue-hover); }
 
 .btn-secondary {
   background-color: #eef3fb;
@@ -263,37 +288,10 @@ input:focus, select:focus {
   flex: 1;
 }
 
-/* Quick Action Buttons on Batch Rows */
-.quick-btn-group {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-top: 4px;
-}
-
-.btn-quick {
-  background: #edf3fd;
-  color: var(--primary-blue);
-  border: 1px solid #d3e2fb;
-  padding: 5px 10px;
-  border-radius: 8px;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.btn-quick:active {
-  background: #dbe7fc;
-}
-
-/* Category Management Alignment Fix */
-.category-group {
-  margin-bottom: 10px;
-}
-
+/* Category manager */
+.category-group { margin-bottom: 10px; }
 .category-item {
   display: flex;
-  flex-direction: row;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
@@ -302,20 +300,12 @@ input:focus, select:focus {
   border-radius: 14px;
   border: 1px solid #eef3fb;
 }
-
-.category-actions {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-
 .sub-category-pills {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
   margin-top: 6px;
 }
-
 .sub-cat-pill {
   font-size: 11px;
   background: #e3ecfb;
@@ -331,12 +321,10 @@ input:focus, select:focus {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
 }
-
-.data-actions {
-  display: flex;
-  gap: 6px;
-}
+.data-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 
 .btn-sm {
   background: #edf3fd;
@@ -365,10 +353,7 @@ input:focus, select:focus {
   padding-bottom: 4px;
   -webkit-overflow-scrolling: touch;
 }
-
-.tabs::-webkit-scrollbar {
-  display: none;
-}
+.tabs::-webkit-scrollbar { display: none; }
 
 .tab-btn {
   border: 1px solid #dbe4f0;
@@ -390,7 +375,7 @@ input:focus, select:focus {
   box-shadow: 0 3px 8px rgba(29, 100, 216, 0.25);
 }
 
-/* Product Cards */
+/* Product cards */
 .product-card {
   background: #ffffff;
   border: 1px solid #eef3fb;
@@ -399,10 +384,7 @@ input:focus, select:focus {
   overflow: hidden;
   box-shadow: 0 4px 12px rgba(29, 100, 216, 0.04);
 }
-
-.card-low-stock {
-  border-left: 5px solid #ff9500;
-}
+.card-low-stock { border-left: 5px solid #ff9500; }
 
 .product-header {
   background: #f8fafe;
@@ -412,25 +394,21 @@ input:focus, select:focus {
   justify-content: space-between;
   align-items: flex-start;
 }
-
 .product-header h3 {
   font-size: 15px;
   font-weight: 700;
   color: var(--text-dark);
 }
-
 .product-sub {
   font-size: 12px;
   color: var(--text-muted);
 }
-
 .product-header-right {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 4px;
+  gap: 6px;
 }
-
 .total-qty-badge {
   font-size: 11px;
   font-weight: 700;
@@ -438,12 +416,18 @@ input:focus, select:focus {
   border-radius: 12px;
   white-space: nowrap;
 }
-
-.batch-list {
-  display: flex;
-  flex-direction: column;
+.btn-quick-add {
+  background: var(--primary-blue);
+  color: white;
+  border: none;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
+.batch-list { display: flex; flex-direction: column; }
 .batch-row {
   padding: 12px 14px;
   border-bottom: 1px solid #f2f5fa;
@@ -451,16 +435,8 @@ input:focus, select:focus {
   flex-direction: column;
   gap: 8px;
 }
-
-.batch-row:last-child {
-  border-bottom: none;
-}
-
-.batch-main-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
+.batch-row:last-child { border-bottom: none; }
+.batch-expiring { background: #fff8f0; }
 
 .batch-pills {
   display: flex;
@@ -468,7 +444,6 @@ input:focus, select:focus {
   align-items: center;
   flex-wrap: wrap;
 }
-
 .batch-dates {
   font-size: 11px;
   color: var(--text-muted);
@@ -476,13 +451,9 @@ input:focus, select:focus {
   gap: 8px;
   flex-wrap: wrap;
 }
+.exp-warn { color: #d97706; font-weight: 700; }
 
-.worth-tag {
-  font-size: 11px;
-  font-weight: 600;
-  margin-top: 2px;
-}
-
+.worth-tag { font-size: 11px; font-weight: 600; margin-top: 2px; }
 .worth-yes { color: #28a745; }
 .worth-no { color: #dc3545; }
 .worth-maybe { color: #ff9500; }
@@ -493,7 +464,6 @@ input:focus, select:focus {
   border-radius: 6px;
   font-weight: 700;
 }
-
 .status-in-stock { background: #e6f9ed; color: #1e7e34; }
 .status-using { background: #fff3cd; color: #856404; }
 .status-finished { background: #fbeae9; color: #c02b21; }
@@ -505,9 +475,40 @@ input:focus, select:focus {
   border-radius: 6px;
   color: var(--text-dark);
 }
-
 .batch-pill.muted { color: var(--text-muted); }
 
+/* Quick actions */
+.quick-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.btn-qty, .btn-status {
+  border: none;
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  min-height: 32px;
+}
+.btn-qty {
+  background: #edf3fd;
+  color: var(--primary-blue);
+  min-width: 36px;
+}
+.btn-status {
+  background: #f0f4fa;
+  color: var(--text-dark);
+  font-size: 11px;
+}
+
+.batch-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 2px;
+}
 .btn-search-batch {
   border: none;
   background: var(--primary-blue);
@@ -518,15 +519,6 @@ input:focus, select:focus {
   font-weight: 600;
   cursor: pointer;
 }
-
-.batch-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-  margin-top: 2px;
-}
-
-/* Delete Button Standard Height Fix */
 .btn-edit, .btn-delete, .btn-delete-cat {
   border: none;
   padding: 6px 14px;
@@ -539,7 +531,6 @@ input:focus, select:focus {
   align-items: center;
   justify-content: center;
 }
-
 .btn-edit { background-color: #edf3fd; color: var(--primary-blue); }
 .btn-delete, .btn-delete-cat { background-color: #ffe8e8; color: #e63946; }
 
@@ -548,6 +539,48 @@ input:focus, select:focus {
   font-size: 13px;
   text-align: center;
   padding: 16px;
+}
+
+/* Shopping */
+.shopping-item {
+  background: #f8fafe;
+  border: 1px solid #eef3fb;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+}
+.shopping-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* Settings */
+.settings-group {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #eef3fb;
+}
+.settings-group h3 {
+  font-size: 15px;
+  margin-bottom: 8px;
+  color: var(--primary-blue);
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #102a56;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  z-index: 999;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
 }
 
 @media (min-width: 480px) {
