@@ -27,9 +27,8 @@ document.addEventListener('DOMContentLoaded', () => {
   renderItems();
   updateDashboard();
   updateDatalists();
-  updateNotifyButton();
   checkAutoBackup();
-  checkAndNotify(false);
+  showWelcomeIfEmpty();
 
   document.getElementById('item-form').addEventListener('submit', handleFormSubmit);
 });
@@ -52,6 +51,7 @@ function saveItems() {
   localStorage.setItem(STORAGE_KEY_ITEMS, JSON.stringify(items));
   updateDashboard();
   updateDatalists();
+  showWelcomeIfEmpty();
 }
 
 function saveCategories() {
@@ -98,6 +98,12 @@ function showView(viewName, clickedBtn = null) {
   if (viewName === 'shopping') renderShoppingList();
   if (viewName === 'archive') renderArchive();
   if (viewName === 'settings') updateSettingsView();
+  if (viewName === 'add') {
+    // Auto-fill today's date for new batches
+    if (!editBatchId && !document.getElementById('purchase-date').value) {
+      document.getElementById('purchase-date').value = new Date().toISOString().slice(0, 10);
+    }
+  }
 }
 
 function showCatalogWithFilter(filterType) {
@@ -112,6 +118,13 @@ function showCatalogWithFilter(filterType) {
       setTab(filterType, btn);
     }
   });
+}
+
+function showWelcomeIfEmpty() {
+  const box = document.getElementById('welcome-box');
+  if (box) {
+    box.style.display = (items.length === 0) ? 'block' : 'none';
+  }
 }
 
 // ===== Categories =====
@@ -183,7 +196,7 @@ function renderCategoryManager() {
         </div>
       </div>`;
   });
-  container.innerHTML = html || '<p class="empty-msg">No custom categories.</p>';
+  container.innerHTML = html || '<p class="empty-msg">No custom categories yet.</p>';
 }
 
 function deleteCategory(catName) {
@@ -192,6 +205,7 @@ function deleteCategory(catName) {
   saveCategories();
   initCategories();
   renderCategoryManager();
+  showToast('Category deleted');
 }
 
 // ===== Form Handling =====
@@ -239,7 +253,6 @@ function handleFormSubmit(e) {
     worthRemark: document.getElementById('worth-remark').value.trim()
   };
 
-  // Compute Use-by if possible
   batchData.useByDate = computeUseBy(batchData.openedDate, batchData.pao);
 
   let product = items.find(i => i.id === editItemId ||
@@ -271,7 +284,7 @@ function handleFormSubmit(e) {
   saveItems();
   resetForm();
   showView('catalog');
-  showToast('Saved successfully');
+  showToast('Saved ✓');
 }
 
 function computeUseBy(openedDate, paoMonths) {
@@ -286,7 +299,7 @@ function resetForm() {
   editItemId = null;
   editBatchId = null;
   document.getElementById('form-heading').innerText = "Add Product Batch / 新增產品批號";
-  document.getElementById('submit-btn').innerText = "Add Batch / 新增批號";
+  document.getElementById('submit-btn').innerText = "Add Batch";
   document.getElementById('cancel-btn').style.display = "none";
   document.getElementById('custom-category').style.display = "none";
   document.getElementById('custom-sub-category').style.display = "none";
@@ -324,7 +337,6 @@ function updateDashboard() {
   document.getElementById('dash-expiring').innerText = expiringSoonCount;
   document.getElementById('dash-finished').innerText = archived.length;
 
-  // Simple insight
   const insightBox = document.getElementById('insight-box');
   const insightText = document.getElementById('insight-text');
   if (archived.length > 0) {
@@ -332,6 +344,8 @@ function updateDashboard() {
     if (avgDays) {
       insightBox.style.display = 'block';
       insightText.innerText = `Average product life (from finished items): ~${avgDays} days`;
+    } else {
+      insightBox.style.display = 'none';
     }
   } else {
     insightBox.style.display = 'none';
@@ -389,9 +403,6 @@ function quickStatus(productId, batchId, newStatus) {
   if (!batch) return;
 
   batch.status = newStatus;
-  if (newStatus === 'Finished' && batch.quantity > 0) {
-    // optional: keep quantity or set to 0
-  }
   saveItems();
   renderItems();
   showToast(`Status → ${newStatus}`);
@@ -484,7 +495,7 @@ function renderItems() {
 
 function renderProductListHTML(productList) {
   if (productList.length === 0) {
-    return '<p class="empty-msg">No products matching your criteria.</p>';
+    return '<p class="empty-msg">No products matching your criteria.<br>Try clearing filters or add a new item.</p>';
   }
 
   return productList.map(product => {
@@ -628,7 +639,6 @@ function deleteBatch(productId, batchId) {
 
   product.batches = product.batches.filter(b => b.id !== batchId);
   if (product.batches.length === 0) {
-    // Move whole product to archive if desired, or just remove
     items = items.filter(p => p.id !== productId);
   }
   saveItems();
@@ -651,7 +661,7 @@ function renderShoppingList() {
   });
 
   if (lowItems.length === 0) {
-    container.innerHTML = '<p class="empty-msg">🎉 Nothing low in stock right now!</p>';
+    container.innerHTML = '<p class="empty-msg">🎉 Nothing needs restocking right now!</p>';
     return;
   }
 
@@ -686,6 +696,7 @@ function exportShoppingList() {
   a.href = URL.createObjectURL(blob);
   a.download = `shopping_list_${new Date().toISOString().slice(0,10)}.txt`;
   a.click();
+  showToast('List exported');
 }
 
 // ===== Archive =====
@@ -719,7 +730,7 @@ function initBrowseView() {
   Object.keys(categoriesData).forEach(cat => {
     html += `<button type="button" class="tab-btn" onclick="selectBrowseMain('${cat.replace(/'/g, "\\'")}', this)">${cat}</button>`;
   });
-  container1.innerHTML = html || '<p class="empty-msg">No categories.</p>';
+  container1.innerHTML = html || '<p class="empty-msg">No categories yet. Add an item first.</p>';
 }
 
 function selectBrowseMain(mainCat, btn) {
@@ -784,6 +795,7 @@ function exportData(format = 'json') {
     a.href = dataStr;
     a.download = `yourshelf_backup_${new Date().toISOString().slice(0,10)}.json`;
     a.click();
+    showToast('JSON backup downloaded');
   } else if (format === 'csv') {
     let csv = "Name,Brand,Size,Category,SubCategory,BatchCode,Quantity,Status,Price,Location,PurchaseDate,OpenedDate,ExpiryDate,PAO,UseBy,Worth,Notes\n";
     items.forEach(p => {
@@ -797,25 +809,32 @@ function exportData(format = 'json') {
     a.href = URL.createObjectURL(blob);
     a.download = `yourshelf_${new Date().toISOString().slice(0,10)}.csv`;
     a.click();
+    showToast('CSV exported');
   }
-  showToast('Exported');
 }
 
 function importData(event) {
   const file = event.target.files[0];
   if (!file) return;
+
+  // Reset input so the same file can be selected again later
+  event.target.value = '';
+
   const reader = new FileReader();
   reader.onload = function(e) {
     try {
-      if (file.name.endsWith('.csv')) {
-        alert('CSV import is basic – prefer JSON for full restore.');
-        return;
-      }
       const parsed = JSON.parse(e.target.result);
+
+      // Support both the new full format and older simple formats
       if (parsed.items && Array.isArray(parsed.items)) {
+        if (!confirm(`Import this backup?\n\n• ${parsed.items.length} products\n• Exported: ${parsed.exportedAt ? new Date(parsed.exportedAt).toLocaleString() : 'Unknown'}\n\nThis will replace your current data.`)) {
+          return;
+        }
+
         items = parsed.items;
         if (parsed.categoriesData) categoriesData = parsed.categoriesData;
         if (parsed.archived) archived = parsed.archived;
+
         saveItems();
         saveCategories();
         saveArchive();
@@ -823,13 +842,20 @@ function importData(event) {
         renderCategoryManager();
         renderItems();
         updateDashboard();
-        alert('Data imported successfully!');
+        showWelcomeIfEmpty();
+
+        showToast('Import successful ✓');
+        alert('Data imported successfully!\n\nYour inventory has been restored.');
       } else {
-        alert('Invalid file format.');
+        alert('Invalid backup file.\n\nPlease select a JSON file that was exported from this app.');
       }
     } catch (err) {
-      alert('Error parsing file.');
+      console.error(err);
+      alert('Could not read the file.\n\nMake sure it is a valid .json backup exported from Check It YourShelf.');
     }
+  };
+  reader.onerror = function() {
+    alert('Error reading the file. Please try again.');
   };
   reader.readAsText(file);
 }
@@ -844,7 +870,7 @@ function createBackup() {
     archived: JSON.parse(JSON.stringify(archived))
   };
   backups.unshift(backup);
-  if (backups.length > 5) backups.length = 5; // keep last 5
+  if (backups.length > 5) backups.length = 5;
   localStorage.setItem(STORAGE_KEY_BACKUPS, JSON.stringify(backups));
 
   const meta = getMeta();
@@ -860,108 +886,18 @@ function checkAutoBackup() {
   const last = meta.lastBackup ? new Date(meta.lastBackup) : null;
   const now = new Date();
   if (!last || (now - last) > 14 * 24 * 60 * 60 * 1000) {
-    // gently remind after 14 days
     setTimeout(() => {
-      if (confirm('It has been a while since your last backup.\nCreate a local backup now?')) {
+      if (items.length > 0 && confirm('It has been a while since your last backup.\n\nCreate a local backup now? (Recommended)')) {
         createBackup();
       }
-    }, 2000);
+    }, 2500);
   }
-}
-
-function showBackups() {
-  const backups = JSON.parse(localStorage.getItem(STORAGE_KEY_BACKUPS) || '[]');
-  if (backups.length === 0) {
-    alert('No local backups yet.');
-    return;
-  }
-  let msg = 'Local Backups:\n\n';
-  backups.forEach((b, i) => {
-    msg += `${i + 1}. ${new Date(b.date).toLocaleString()} (${b.items.length} products)\n`;
-  });
-  msg += '\nTo restore, use the full JSON export/import for now.';
-  alert(msg);
 }
 
 function updateSettingsView() {
   const meta = getMeta();
   document.getElementById('last-backup-date').innerText =
     meta.lastBackup ? new Date(meta.lastBackup).toLocaleString() : 'Never';
-  updateNotifyButton();
-}
-
-// ===== Notifications =====
-function updateNotifyButton() {
-  const btn = document.getElementById('notify-toggle-btn');
-  const statusEl = document.getElementById('notify-status');
-  if (!('Notification' in window)) {
-    if (btn) btn.innerText = '🔔 Not supported';
-    if (statusEl) statusEl.innerText = 'Notifications not supported in this browser';
-    return;
-  }
-  const perm = Notification.permission;
-  if (btn) {
-    btn.innerText = perm === 'granted' ? '🔔 On' : '🔔 Enable Notifications';
-  }
-  if (statusEl) {
-    statusEl.innerText = `Status: ${perm}`;
-  }
-}
-
-function toggleNotificationPermission() {
-  if (!('Notification' in window)) {
-    alert('Notifications not supported');
-    return;
-  }
-  if (Notification.permission === 'granted') {
-    alert('Notifications are already enabled. You can manage them in browser settings.');
-  } else if (Notification.permission !== 'denied') {
-    Notification.requestPermission().then(permission => {
-      updateNotifyButton();
-      if (permission === 'granted') {
-        checkAndNotify(true);
-      }
-    });
-  } else {
-    alert('Permission denied. Please enable in browser settings.');
-  }
-}
-
-function checkAndNotify(force = false) {
-  if (Notification.permission !== 'granted') return;
-
-  const today = new Date();
-  const soon = new Date();
-  soon.setDate(today.getDate() + 14);
-
-  let lowCount = 0;
-  let expiring = [];
-
-  items.forEach(product => {
-    const activeBatches = product.batches.filter(b => b.status !== 'Finished');
-    const qty = activeBatches.reduce((a, b) => a + (b.quantity || 0), 0);
-    if (qty <= (product.lowThreshold || 1) && activeBatches.length > 0) lowCount++;
-
-    product.batches.forEach(b => {
-      if (b.status === 'Finished') return;
-      const exp = getEffectiveExpiry(b);
-      if (exp && new Date(exp) <= soon) {
-        expiring.push(`${product.name} (${exp})`);
-      }
-    });
-  });
-
-  if (force || lowCount > 0 || expiring.length > 0) {
-    let body = '';
-    if (lowCount > 0) body += `${lowCount} item(s) low in stock. `;
-    if (expiring.length > 0) body += `${expiring.length} batch(es) expiring soon.`;
-    if (!body) body = 'Inventory looks good!';
-
-    new Notification('Check It YourShelf', {
-      body: body,
-      icon: 'Picture%201.png'
-    });
-  }
 }
 
 // ===== Toast =====
