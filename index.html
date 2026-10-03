@@ -3,327 +3,47 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Check It YourShelf">
-  <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="icon.png">
   <title>Check It YourShelf</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1d64d8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="apple-touch-icon" href="icon.png">
 </head>
 <body>
   <div class="app">
     <header>
-      <h1>CHECK IT YOURSHELF!</h1>
-      <p class="subtitle">DON'T GUESS WHAT'S IN STOCK • HONG KONG</p>
-      <div class="header-actions">
-        <button type="button" class="btn-sm" onclick="showView('settings')">⚙️ Settings</button>
+      <div>
+        <h1 id="app-title">Check It YourShelf</h1>
+        <div class="subtitle" id="app-subtitle">Smart Household & Skincare Tracker</div>
       </div>
+      <button id="lang-toggle-btn" class="lang-btn">繁體中文</button>
     </header>
 
-    <!-- Main Navigation -->
     <nav class="main-nav-bar">
-      <button type="button" class="nav-tab active" onclick="showView('home', this)">🏠 Home</button>
-      <button type="button" class="nav-tab" onclick="showView('add', this)">➕ Add</button>
-      <button type="button" class="nav-tab" onclick="showView('browse', this)">📂 Browse</button>
-      <button type="button" class="nav-tab" onclick="showView('catalog', this)">📦 Catalog</button>
-      <button type="button" class="nav-tab" onclick="showView('shopping', this)">🛒 List</button>
+      <button class="nav-tab active" data-tab="dashboard" id="tab-dash">Dashboard</button>
+      <button class="nav-tab" data-tab="items" id="tab-items">Inventory</button>
+      <button class="nav-tab" data-tab="add" id="tab-add">+ Add</button>
+      <button class="nav-tab" data-tab="catalog" id="tab-catalog">Categories</button>
+      <button class="nav-tab" data-tab="locations" id="tab-locations">Locations</button>
+      <button class="nav-tab" data-tab="shopping" id="tab-shop">Shopping</button>
+      <button class="nav-tab" data-tab="settings" id="tab-set">Settings</button>
     </nav>
 
-    <main>
-      <!-- HOME -->
-      <section id="view-home" class="card-section">
-        <h2>Dashboard / 概覽</h2>
-        
-        <div id="welcome-box" class="welcome-box" style="display:none;">
-          <strong>👋 Welcome!</strong>
-          <p>Start by adding your first product. Tap <strong>➕ Add</strong> above.</p>
-          <p style="margin-top:8px;font-size:13px;">You can also import a previous backup in Settings.</p>
-        </div>
-
-        <div class="dashboard-grid">
-          <div class="dash-card" onclick="showCatalogWithFilter('ALL')">
-            <span class="dash-num" id="dash-total">0</span>
-            <span class="dash-label">Active Qty</span>
-          </div>
-          <div class="dash-card dash-warning" onclick="showCatalogWithFilter('LOW_STOCK')">
-            <span class="dash-num" id="dash-low">0</span>
-            <span class="dash-label">Low Stock ⚠️</span>
-          </div>
-          <div class="dash-card dash-danger" onclick="showCatalogWithFilter('EXPIRING')">
-            <span class="dash-num" id="dash-expiring">0</span>
-            <span class="dash-label">Expiring ⌛</span>
-          </div>
-          <div class="dash-card" onclick="showView('archive')">
-            <span class="dash-num" id="dash-finished">0</span>
-            <span class="dash-label">Archived</span>
-          </div>
-        </div>
-
-        <div class="insight-box" id="insight-box" style="display:none;">
-          <strong>📊 Quick Insight</strong>
-          <p id="insight-text"></p>
-        </div>
-
-        <p class="subtitle" style="margin:16px 0 10px;font-weight:600;">Main Menu / 選單</p>
-        <div class="nav-grid">
-          <button type="button" class="nav-card-btn" onclick="showView('add')">
-            <span class="nav-icon">➕</span>
-            <strong>Add New Item / Batch</strong>
-            <small>新增產品或批號</small>
-          </button>
-          <button type="button" class="nav-card-btn" onclick="showView('browse')">
-            <span class="nav-icon">📂</span>
-            <strong>Browse by Category</strong>
-            <small>按分類瀏覽</small>
-          </button>
-          <button type="button" class="nav-card-btn" onclick="showView('catalog')">
-            <span class="nav-icon">📦</span>
-            <strong>Full Catalog</strong>
-            <small>完整物品清單</small>
-          </button>
-          <button type="button" class="nav-card-btn" onclick="showView('shopping')">
-            <span class="nav-icon">🛒</span>
-            <strong>Shopping List</strong>
-            <small>低庫存補貨清單</small>
-          </button>
-        </div>
-      </section>
-
-      <!-- ADD / EDIT -->
-      <section id="view-add" class="card-section" style="display:none;">
-        <h2 id="form-heading">Add Product Batch / 新增產品批號</h2>
-        <form id="item-form" autocomplete="off">
-          <div class="form-row">
-            <div class="input-group">
-              <label for="name">Product Name / 產品名稱 *</label>
-              <input type="text" id="name" list="product-suggestions" placeholder="Type or select..." required>
-              <datalist id="product-suggestions"></datalist>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="input-group">
-              <label for="brand">Brand / 品牌</label>
-              <input type="text" id="brand" list="brand-suggestions" placeholder="e.g. CeraVe">
-              <datalist id="brand-suggestions"></datalist>
-            </div>
-            <div class="input-group">
-              <label for="size">Volume / Size / 容量</label>
-              <input type="text" id="size" placeholder="e.g. 100ml, 50g">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="input-group">
-              <label for="category">Category / 主分類 *</label>
-              <select id="category" required onchange="onCategoryChange()">
-                <option value="">-- Select --</option>
-              </select>
-            </div>
-            <div class="input-group">
-              <label for="sub-category">Sub-category / 子分類</label>
-              <select id="sub-category" onchange="onSubCategoryChange()">
-                <option value="">-- Select --</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-row">
-            <input type="text" id="custom-category" placeholder="New main category..." style="display:none;">
-            <input type="text" id="custom-sub-category" placeholder="New sub-category..." style="display:none;">
-          </div>
-          <div class="form-row">
-            <div class="input-group">
-              <label for="low-threshold">Low Stock Alert Below</label>
-              <input type="number" id="low-threshold" value="1" min="0">
-            </div>
-          </div>
-
-          <fieldset class="form-fieldset">
-            <legend>Batch Details / 批號資訊</legend>
-            <div class="form-row">
-              <div class="input-group">
-                <label for="batch-code">Batch / Lot Code</label>
-                <input type="text" id="batch-code" placeholder="e.g. 21T400">
-              </div>
-              <div class="input-group">
-                <label for="quantity">Quantity</label>
-                <input type="number" id="quantity" value="1" min="0">
-              </div>
-              <div class="input-group">
-                <label for="price">Price (HKD)</label>
-                <input type="number" id="price" step="0.1" placeholder="150">
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="input-group">
-                <label for="status">Status</label>
-                <select id="status">
-                  <option value="In Stock">In Stock / 有存貨</option>
-                  <option value="Using">Using / 使用中</option>
-                  <option value="Finished">Finished / 已用完</option>
-                </select>
-              </div>
-              <div class="input-group">
-                <label for="location">Storage Location</label>
-                <input type="text" id="location" placeholder="Bathroom Cabinet">
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="input-group">
-                <label for="purchase-date">Purchase Date</label>
-                <input type="date" id="purchase-date">
-              </div>
-              <div class="input-group">
-                <label for="opened-date">Opened Date</label>
-                <input type="date" id="opened-date">
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="input-group">
-                <label for="expiry-date">Expiry Date</label>
-                <input type="date" id="expiry-date">
-              </div>
-              <div class="input-group">
-                <label for="pao">PAO (Months)</label>
-                <input type="number" id="pao" placeholder="6 / 12 / 24" min="0">
-              </div>
-            </div>
-          </fieldset>
-
-          <div class="form-row">
-            <div class="input-group">
-              <label for="worth">Repurchase?</label>
-              <select id="worth">
-                <option value="">-- Select --</option>
-                <option value="Yes">Yes / 值得</option>
-                <option value="No">No / 不值得</option>
-                <option value="Maybe">Maybe / 再看看</option>
-              </select>
-            </div>
-            <div class="input-group">
-              <label for="worth-remark">Notes</label>
-              <input type="text" id="worth-remark" placeholder="Bought on sale...">
-            </div>
-          </div>
-
-          <div class="form-actions">
-            <button type="submit" id="submit-btn" class="btn-primary">Add Batch</button>
-            <button type="button" id="cancel-btn" class="btn-secondary" style="display:none;" onclick="resetForm()">Cancel</button>
-          </div>
-        </form>
-      </section>
-
-      <!-- BROWSE -->
-      <section id="view-browse" class="card-section" style="display:none;">
-        <h2>Browse Categories / 分類瀏覽</h2>
-        <div id="browse-step-1">
-          <label style="font-weight:700;font-size:13px;color:var(--primary-blue);">Step 1: Main Category</label>
-          <div id="main-cat-buttons" class="cat-grid"></div>
-        </div>
-        <div id="browse-step-2" style="display:none;margin-top:16px;padding-top:12px;border-top:1px dashed var(--shadow-blue);">
-          <label style="font-weight:700;font-size:13px;color:var(--primary-blue);">Step 2: Sub-category</label>
-          <div id="sub-cat-buttons" class="cat-grid"></div>
-        </div>
-        <div id="browse-results" style="margin-top:16px;"></div>
-      </section>
-
-      <!-- CATALOG -->
-      <div id="view-catalog" style="display:none;">
-        <section class="card-section">
-          <h2>Manage Categories</h2>
-          <div id="categories-list"></div>
-        </section>
-        <section class="card-section">
-          <div class="list-header">
-            <h2>Inventory Catalog</h2>
-            <div class="data-actions">
-              <button type="button" class="btn-sm" onclick="exportData('json')">Export JSON</button>
-              <button type="button" class="btn-sm" onclick="exportData('csv')">Export CSV</button>
-            </div>
-          </div>
-          <div class="search-filter-bar">
-            <input type="text" id="search-input" placeholder="Search product, brand, size, batch, notes..." oninput="renderItems()">
-            <select id="filter-category" onchange="onFilterCategoryChange()">
-              <option value="ALL">All Categories</option>
-            </select>
-            <select id="filter-sub-category" onchange="renderItems()">
-              <option value="ALL">All Sub-categories</option>
-            </select>
-          </div>
-          <div class="location-chips-wrapper">
-            <span style="font-size:11px;font-weight:700;color:var(--text-muted);">📍 Location:</span>
-            <div id="location-chips" class="tabs" style="margin-bottom:0;"></div>
-          </div>
-          <div class="tabs" style="margin-top:10px;">
-            <button type="button" class="tab-btn active" onclick="setTab('ALL', this)">All</button>
-            <button type="button" class="tab-btn" onclick="setTab('LOW_STOCK', this)">⚠️ Low</button>
-            <button type="button" class="tab-btn" onclick="setTab('EXPIRING', this)">⌛ Expiring</button>
-            <button type="button" class="tab-btn" onclick="setTab('FINISHED', this)">Finished</button>
-          </div>
-          <div id="items-list"></div>
-        </section>
-      </div>
-
-      <!-- SHOPPING LIST -->
-      <section id="view-shopping" class="card-section" style="display:none;">
-        <h2>🛒 Shopping List / 補貨清單</h2>
-        <p class="subtitle">Items currently below their low-stock threshold.</p>
-        <div id="shopping-list"></div>
-        <button type="button" class="btn-primary" style="margin-top:16px;width:100%;" onclick="exportShoppingList()">Export as Text</button>
-      </section>
-
-      <!-- ARCHIVE -->
-      <section id="view-archive" class="card-section" style="display:none;">
-        <h2>📦 Archive / 已封存</h2>
-        <p class="subtitle">Finished products kept for history.</p>
-        <div id="archive-list"></div>
-      </section>
-
-      <!-- SETTINGS -->
-      <section id="view-settings" class="card-section" style="display:none;">
-        <h2>⚙️ Settings & Data</h2>
-
-        <div class="settings-group">
-          <h3>Backup & Restore</h3>
-          <p class="subtitle">Last backup: <span id="last-backup-date">Never</span></p>
-          <div class="settings-buttons">
-            <button type="button" class="btn-sm btn-block" onclick="createBackup()">Create Local Backup</button>
-            <button type="button" class="btn-sm btn-block" onclick="exportData('json')">Download Full Backup (JSON)</button>
-            <button type="button" class="btn-sm btn-block" onclick="document.getElementById('import-file').click()">Import Backup (JSON)</button>
-            <input type="file" id="import-file" style="display:none;" accept=".json,application/json" onchange="importData(event)">
-          </div>
-          <p class="help-text">
-            <strong>iPhone tip:</strong> After tapping Import, choose “Browse” → Files app, then select your .json backup file.
-          </p>
-        </div>
-
-        <div class="settings-group">
-          <h3>Export Options</h3>
-          <div class="settings-buttons">
-            <button type="button" class="btn-sm btn-block" onclick="exportData('csv')">Export as CSV (Excel)</button>
-          </div>
-        </div>
-
-        <div class="settings-group">
-          <h3>How to use</h3>
-          <div class="help-box">
-            <p>1. Tap <strong>➕ Add</strong> to record a product + batch.</p>
-            <p>2. Use the <strong>+ / −</strong> buttons on each batch to adjust quantity quickly.</p>
-            <p>3. Tap <strong>Using</strong> or <strong>Finish</strong> to change status.</p>
-            <p>4. Check <strong>🛒 List</strong> for items that need restocking.</p>
-            <p>5. Regularly create a backup in Settings (recommended every 1–2 weeks).</p>
-          </div>
-        </div>
-      </section>
+    <main id="main-content">
+      <!-- Views dynamically injected here -->
     </main>
   </div>
 
-  <!-- Toast -->
-  <div id="toast" class="toast" style="display:none;"></div>
+  <div id="toast" class="toast" style="display: none;"></div>
 
   <script src="app.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').catch(err => console.log('SW failed', err));
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
     }
   </script>
 </body>
