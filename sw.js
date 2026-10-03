@@ -1,11 +1,11 @@
-const CACHE_NAME = 'yourshelf-v2';
+const CACHE_NAME = 'yourshelf-v3';
 const ASSETS = [
   './',
   './index.html',
   './style.css',
   './app.js',
   './manifest.json',
-  './Picture%201.png'
+  './icon.png'
 ];
 
 self.addEventListener('install', (e) => {
