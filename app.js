@@ -1,909 +1,773 @@
-// ===== Constants & Storage Keys =====
-const STORAGE_KEY_ITEMS = 'shelflife_items_v2';
-const STORAGE_KEY_CATEGORIES = 'shelflife_categories_v2';
-const STORAGE_KEY_ARCHIVE = 'shelflife_archive_v2';
-const STORAGE_KEY_BACKUPS = 'shelflife_backups_v2';
-const STORAGE_KEY_META = 'shelflife_meta_v2';
-const SCHEMA_VERSION = 2;
-
-const defaultCategories = {
-  "Skincare / 護膚": ["Sunscreen / 防曬", "Serum / 精華", "Cleanser / 潔面", "Moisturizer / 面霜"],
-  "Laundry / 洗衣": ["Detergent / 洗衣液", "Softener / 柔順劑"]
+/* Language Dictionary */
+const i18n = {
+  en: {
+    appTitle: "Check It YourShelf",
+    appSubtitle: "Smart Household & Skincare Tracker",
+    dash: "Dashboard",
+    inventory: "Inventory",
+    add: "+ Add",
+    categories: "Categories",
+    locations: "Locations",
+    shopping: "Shopping",
+    settings: "Settings",
+    totalItems: "Total Products",
+    lowStock: "Low Stock (≤1)",
+    expiringSoon: "Expiring Soon",
+    expired: "Expired",
+    searchPlaceholder: "Search by name or brand...",
+    filterCat: "All Categories",
+    filterLoc: "All Rooms",
+    all: "All",
+    addTitle: "Add New Product",
+    editTitle: "Edit Product",
+    nameLabel: "Product Name *",
+    brandLabel: "Brand / Maker",
+    catLabel: "Category *",
+    subCatLabel: "Sub-Category",
+    mainLocLabel: "Main Room *",
+    subLocLabel: "Storage Spot",
+    qtyLabel: "Quantity",
+    statusLabel: "Status",
+    openedDateLabel: "Date Opened",
+    paoLabel: "Period After Opening (Months)",
+    expiryDateLabel: "Expiration Date",
+    worthItLabel: "Worth Repurchasing?",
+    saveBtn: "Save Product",
+    cancelBtn: "Cancel",
+    manageCats: "Category Manager",
+    addCatBtn: "+ Add Category",
+    addSubCatBtn: "+ Sub-Cat",
+    manageLocs: "Location Manager",
+    addMainLocBtn: "+ Add Room",
+    addSubLocBtn: "+ Spot",
+    shoppingList: "Shopping List",
+    addShopPlaceholder: "Add item to buy...",
+    inStock: "In Stock",
+    inUse: "In Use",
+    finished: "Finished",
+    yes: "Worth It",
+    no: "Not Worth It",
+    maybe: "Maybe",
+    exportData: "Export Data (JSON)",
+    importData: "Import Data (JSON)",
+    clearData: "Reset All Data",
+    confirmDelete: "Are you sure you want to delete this item?",
+    saved: "Saved successfully!"
+  },
+  zh: {
+    appTitle: "Check It YourShelf",
+    appSubtitle: "智能家居與護膚品庫存管理",
+    dash: "儀表板",
+    inventory: "物品庫存",
+    add: "+ 新增",
+    categories: "分類管理",
+    locations: "位置管理",
+    shopping: "購物清單",
+    settings: "設定",
+    totalItems: "物品總數",
+    lowStock: "庫存緊張 (≤1)",
+    expiringSoon: "即將過期 (30天)",
+    expired: "已過期",
+    searchPlaceholder: "搜尋名稱或品牌...",
+    filterCat: "所有分類",
+    filterLoc: "所有房間",
+    all: "全部",
+    addTitle: "新增物品",
+    editTitle: "編輯物品",
+    nameLabel: "物品名稱 *",
+    brandLabel: "品牌 / 製造商",
+    catLabel: "主要分類 *",
+    subCatLabel: "子分類",
+    mainLocLabel: "主要房間 *",
+    subLocLabel: "具體位置",
+    qtyLabel: "數量",
+    statusLabel: "狀態",
+    openedDateLabel: "開封日期",
+    paoLabel: "開架保質期 (PAO 月數)",
+    expiryDateLabel: "官方過期日",
+    worthItLabel: "值得回購？",
+    saveBtn: "儲存物品",
+    cancelBtn: "取消",
+    manageCats: "目錄管理",
+    addCatBtn: "+ 新增主分類",
+    addSubCatBtn: "+ 子分類",
+    manageLocs: "存放位置管理",
+    addMainLocBtn: "+ 新增房間",
+    addSubLocBtn: "+ 位置",
+    shoppingList: "購物清單",
+    addShopPlaceholder: "輸入欲購買物品...",
+    inStock: "有存貨",
+    inUse: "使用中",
+    finished: "已用完",
+    yes: "值得回購",
+    no: "不回購",
+    maybe: "考慮中",
+    exportData: "匯出數據 (JSON)",
+    importData: "匯入數據 (JSON)",
+    clearData: "重置所有數據",
+    confirmDelete: "確定要刪除此項目嗎？",
+    saved: "成功儲存！"
+  }
 };
 
-let items = [];
-let categoriesData = {};
-let archived = [];
-let activeTab = 'ALL';
-let activeLocationFilter = 'ALL';
-let editItemId = null;
-let editBatchId = null;
+/* State Management */
+let currentLang = localStorage.getItem('yourshelf_lang') || 'en';
+let activeTab = 'dashboard';
+let editingItemId = null;
 
-// ===== Init =====
+const defaultCategories = [
+  { name: "Skincare", subs: ["Cleansing", "Toner & Essence", "Serums & Ampoules", "Eye Cream", "Moisturizer", "Sunscreen", "Masks"] },
+  { name: "Cosmetics & Makeup", subs: ["Face Base", "Eye Makeup", "Lips", "Blush & Contour"] },
+  { name: "Personal Care & Hair", subs: ["Hair Care", "Body Wash & Lotion", "Oral Hygiene", "Deodorant & Perfume"] },
+  { name: "Household & Cleaning", subs: ["Laundry", "Dish & Surface", "Paper & Disposables", "Trash Bags"] },
+  { name: "Health & First Aid", subs: ["Vitamins & Supplements", "Medicine & Ointment", "Plasters & Bandages"] }
+];
+
+const defaultLocations = [
+  { main: "Toilet / Bathroom", subs: ["Under Sink Cabinet", "Medicine Cabinet", "Shower Caddy", "Countertop"] },
+  { main: "Bedroom", subs: ["Drawer #1", "Drawer #2", "Vanity Table", "Closet Shelf"] },
+  { main: "Living Room", subs: ["TV Cabinet", "Storage Side Table"] },
+  { main: "Kitchen", subs: ["Under Sink Drawer", "Pantry Rack"] },
+  { main: "Store Room", subs: ["Top Shelf", "Organizing Box A"] }
+];
+
+let items = JSON.parse(localStorage.getItem('yourshelf_items')) || [];
+let categories = JSON.parse(localStorage.getItem('yourshelf_cats')) || defaultCategories;
+let locations = JSON.parse(localStorage.getItem('yourshelf_locs')) || defaultLocations;
+let shoppingList = JSON.parse(localStorage.getItem('yourshelf_shop')) || [];
+
+function saveState() {
+  localStorage.setItem('yourshelf_lang', currentLang);
+  localStorage.setItem('yourshelf_items', JSON.stringify(items));
+  localStorage.setItem('yourshelf_cats', JSON.stringify(categories));
+  localStorage.setItem('yourshelf_locs', JSON.stringify(locations));
+  localStorage.setItem('yourshelf_shop', JSON.stringify(shoppingList));
+}
+
+function escapeHTML(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  setTimeout(() => { t.style.display = 'none'; }, 2200);
+}
+
+function t(key) {
+  return i18n[currentLang][key] || key;
+}
+
+/* App Initialization */
 document.addEventListener('DOMContentLoaded', () => {
-  loadAllData();
-  initCategories();
-  renderCategoryManager();
-  renderItems();
-  updateDashboard();
-  updateDatalists();
-  checkAutoBackup();
-  showWelcomeIfEmpty();
-
-  document.getElementById('item-form').addEventListener('submit', handleFormSubmit);
+  setupHeaderAndNav();
+  renderView();
 });
 
-// ===== Data Load / Save =====
-function loadAllData() {
-  try {
-    items = JSON.parse(localStorage.getItem(STORAGE_KEY_ITEMS)) || [];
-    categoriesData = JSON.parse(localStorage.getItem(STORAGE_KEY_CATEGORIES)) || defaultCategories;
-    archived = JSON.parse(localStorage.getItem(STORAGE_KEY_ARCHIVE)) || [];
-  } catch (e) {
-    console.error('Load error', e);
-    items = [];
-    categoriesData = defaultCategories;
-    archived = [];
-  }
-}
+function setupHeaderAndNav() {
+  const langBtn = document.getElementById('lang-toggle-btn');
+  langBtn.textContent = currentLang === 'en' ? '繁體中文' : 'English';
+  langBtn.onclick = () => {
+    currentLang = currentLang === 'en' ? 'zh' : 'en';
+    saveState();
+    setupHeaderAndNav();
+    renderView();
+  };
 
-function saveItems() {
-  localStorage.setItem(STORAGE_KEY_ITEMS, JSON.stringify(items));
-  updateDashboard();
-  updateDatalists();
-  showWelcomeIfEmpty();
-}
+  document.getElementById('app-title').textContent = t('appTitle');
+  document.getElementById('app-subtitle').textContent = t('appSubtitle');
 
-function saveCategories() {
-  localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(categoriesData));
-}
+  document.getElementById('tab-dash').textContent = t('dash');
+  document.getElementById('tab-items').textContent = t('inventory');
+  document.getElementById('tab-add').textContent = t('add');
+  document.getElementById('tab-catalog').textContent = t('categories');
+  document.getElementById('tab-locations').textContent = t('locations');
+  document.getElementById('tab-shop').textContent = t('shopping');
+  document.getElementById('tab-set').textContent = t('settings');
 
-function saveArchive() {
-  localStorage.setItem(STORAGE_KEY_ARCHIVE, JSON.stringify(archived));
-}
-
-function saveMeta(meta) {
-  localStorage.setItem(STORAGE_KEY_META, JSON.stringify(meta));
-}
-
-function getMeta() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY_META)) || {};
-  } catch {
-    return {};
-  }
-}
-
-// ===== Navigation =====
-function showView(viewName, clickedBtn = null) {
-  const views = ['home', 'add', 'browse', 'catalog', 'shopping', 'archive', 'settings'];
-  views.forEach(v => {
-    const el = document.getElementById(`view-${v}`);
-    if (el) el.style.display = (v === viewName) ? 'block' : 'none';
-  });
-
-  const navTabs = document.querySelectorAll('.main-nav-bar .nav-tab');
-  navTabs.forEach(tab => tab.classList.remove('active'));
-  if (clickedBtn) {
-    clickedBtn.classList.add('active');
-  } else {
-    const map = { home: 0, add: 1, browse: 2, catalog: 3, shopping: 4 };
-    if (map[viewName] !== undefined && navTabs[map[viewName]]) {
-      navTabs[map[viewName]].classList.add('active');
-    }
-  }
-
-  if (viewName === 'browse') initBrowseView();
-  if (viewName === 'catalog') renderItems();
-  if (viewName === 'shopping') renderShoppingList();
-  if (viewName === 'archive') renderArchive();
-  if (viewName === 'settings') updateSettingsView();
-  if (viewName === 'add') {
-    // Auto-fill today's date for new batches
-    if (!editBatchId && !document.getElementById('purchase-date').value) {
-      document.getElementById('purchase-date').value = new Date().toISOString().slice(0, 10);
-    }
-  }
-}
-
-function showCatalogWithFilter(filterType) {
-  showView('catalog');
-  const buttons = document.querySelectorAll('#view-catalog .tabs .tab-btn');
-  buttons.forEach(btn => {
-    const text = btn.innerText;
-    if ((filterType === 'ALL' && text.includes('All')) ||
-        (filterType === 'LOW_STOCK' && text.includes('Low')) ||
-        (filterType === 'EXPIRING' && text.includes('Expiring')) ||
-        (filterType === 'FINISHED' && text.includes('Finished'))) {
-      setTab(filterType, btn);
-    }
+  document.querySelectorAll('.nav-tab').forEach(btn => {
+    btn.onclick = (e) => {
+      document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      activeTab = e.target.dataset.tab;
+      if (activeTab !== 'add') editingItemId = null;
+      renderView();
+    };
   });
 }
 
-function showWelcomeIfEmpty() {
-  const box = document.getElementById('welcome-box');
-  if (box) {
-    box.style.display = (items.length === 0) ? 'block' : 'none';
-  }
+function renderView() {
+  const main = document.getElementById('main-content');
+  if (activeTab === 'dashboard') renderDashboard(main);
+  else if (activeTab === 'items') renderInventory(main);
+  else if (activeTab === 'add') renderAddEditForm(main);
+  else if (activeTab === 'catalog') renderCatalogManager(main);
+  else if (activeTab === 'locations') renderLocationManager(main);
+  else if (activeTab === 'shopping') renderShoppingView(main);
+  else if (activeTab === 'settings') renderSettingsView(main);
 }
 
-// ===== Categories =====
-function initCategories() {
-  const catSelect = document.getElementById('category');
-  const filterCatSelect = document.getElementById('filter-category');
-  if (!catSelect || !filterCatSelect) return;
+/* 1. Dashboard View */
+function renderDashboard(container) {
+  const lowStockCount = items.filter(i => i.quantity <= 1).length;
+  
+  let expiringCount = 0;
+  let expiredCount = 0;
+  const now = new Date();
 
-  catSelect.innerHTML = '<option value="">-- Select Category --</option>';
-  filterCatSelect.innerHTML = '<option value="ALL">All Categories</option>';
-
-  Object.keys(categoriesData).forEach(cat => {
-    catSelect.innerHTML += `<option value="${cat}">${cat}</option>`;
-    filterCatSelect.innerHTML += `<option value="${cat}">${cat}</option>`;
+  items.forEach(i => {
+    const expDate = getEffectiveExpiry(i);
+    if (expDate) {
+      const diffDays = Math.ceil((expDate - now) / (1000 * 60 * 60 * 24));
+      if (diffDays <= 0) expiredCount++;
+      else if (diffDays <= 30) expiringCount++;
+    }
   });
-  catSelect.innerHTML += `<option value="NEW">+ Add New Category...</option>`;
+
+  container.innerHTML = `
+    <div class="dashboard-grid">
+      <div class="dash-card" onclick="switchTab('items')">
+        <div class="dash-num">${items.length}</div>
+        <div class="dash-label">${t('totalItems')}</div>
+      </div>
+      <div class="dash-card dash-warning" onclick="switchTab('items')">
+        <div class="dash-num">${lowStockCount}</div>
+        <div class="dash-label">${t('lowStock')}</div>
+      </div>
+      <div class="dash-card dash-warning" onclick="switchTab('items')">
+        <div class="dash-num">${expiringCount}</div>
+        <div class="dash-label">${t('expiringSoon')}</div>
+      </div>
+      <div class="dash-card dash-danger" onclick="switchTab('items')">
+        <div class="dash-num">${expiredCount}</div>
+        <div class="dash-label">${t('expired')}</div>
+      </div>
+    </div>
+    <div class="card-section">
+      <h2>Quick Actions</h2>
+      <button class="btn-primary" style="width:100%; height:46px;" onclick="switchTab('add')">${t('addTitle')}</button>
+    </div>
+  `;
 }
 
-function onCategoryChange() {
-  const catSelect = document.getElementById('category');
-  const customCatInput = document.getElementById('custom-category');
-  const subCatSelect = document.getElementById('sub-category');
+function switchTab(tabName) {
+  activeTab = tabName;
+  document.querySelectorAll('.nav-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tabName);
+  });
+  renderView();
+}
 
-  if (catSelect.value === 'NEW') {
-    customCatInput.style.display = 'block';
-    customCatInput.required = true;
-    subCatSelect.innerHTML = '<option value="NEW">+ Add New Sub-category...</option>';
-    onSubCategoryChange();
-  } else {
-    customCatInput.style.display = 'none';
-    customCatInput.required = false;
-    populateSubCategories(catSelect.value);
+/* Helper Expiry Calculation */
+function getEffectiveExpiry(item) {
+  let dates = [];
+  if (item.expiryDate) dates.push(new Date(item.expiryDate));
+  if (item.openedDate && item.paoMonths) {
+    let paoExp = new Date(item.openedDate);
+    paoExp.setMonth(paoExp.getMonth() + parseInt(item.paoMonths));
+    dates.push(paoExp);
   }
+  if (dates.length === 0) return null;
+  return new Date(Math.min(...dates));
 }
 
-function populateSubCategories(mainCat) {
-  const subCatSelect = document.getElementById('sub-category');
-  subCatSelect.innerHTML = '<option value="">-- Select Sub-category --</option>';
-  if (categoriesData[mainCat]) {
-    categoriesData[mainCat].forEach(sub => {
-      subCatSelect.innerHTML += `<option value="${sub}">${sub}</option>`;
-    });
+/* 2. Inventory View */
+function renderInventory(container) {
+  let catOptions = categories.map(c => `<option value="${escapeHTML(c.name)}">${escapeHTML(c.name)}</option>`).join('');
+  let locOptions = locations.map(l => `<option value="${escapeHTML(l.main)}">${escapeHTML(l.main)}</option>`).join('');
+
+  container.innerHTML = `
+    <div class="search-filter-bar">
+      <input type="text" id="search-input" placeholder="${t('searchPlaceholder')}" oninput="filterItems()">
+      <div style="display:flex; gap:8px;">
+        <select id="filter-cat" onchange="filterItems()">
+          <option value="">${t('filterCat')}</option>
+          ${catOptions}
+        </select>
+        <select id="filter-loc" onchange="filterItems()">
+          <option value="">${t('filterLoc')}</option>
+          ${locOptions}
+        </select>
+      </div>
+    </div>
+    <div id="item-list-container"></div>
+  `;
+  filterItems();
+}
+
+function filterItems() {
+  const query = (document.getElementById('search-input')?.value || '').toLowerCase();
+  const catFilter = document.getElementById('filter-cat')?.value || '';
+  const locFilter = document.getElementById('filter-loc')?.value || '';
+
+  const listContainer = document.getElementById('item-list-container');
+  if (!listContainer) return;
+
+  const filtered = items.filter(item => {
+    const matchesSearch = item.name.toLowerCase().includes(query) || (item.brand && item.brand.toLowerCase().includes(query));
+    const matchesCat = !catFilter || item.category === catFilter;
+    const matchesLoc = !locFilter || item.mainLoc === locFilter;
+    return matchesSearch && matchesCat && matchesLoc;
+  });
+
+  if (filtered.length === 0) {
+    listContainer.innerHTML = `<div class="empty-msg">No items found.</div>`;
+    return;
   }
-  subCatSelect.innerHTML += `<option value="NEW">+ Add New Sub-category...</option>`;
-}
 
-function onSubCategoryChange() {
-  const subCatSelect = document.getElementById('sub-category');
-  const customSubCatInput = document.getElementById('custom-sub-category');
-  customSubCatInput.style.display = subCatSelect.value === 'NEW' ? 'block' : 'none';
-}
+  const now = new Date();
+  listContainer.innerHTML = filtered.map(item => {
+    const expDate = getEffectiveExpiry(item);
+    let expBadge = '';
+    let cardClass = '';
 
-function renderCategoryManager() {
-  const container = document.getElementById('categories-list');
-  if (!container) return;
-  let html = '';
-  Object.keys(categoriesData).forEach(cat => {
-    const subPills = (categoriesData[cat] || []).map(s => `<span class="sub-cat-pill">${s}</span>`).join(' ');
-    html += `
-      <div class="category-group">
-        <div class="category-item">
+    if (expDate) {
+      const diffDays = Math.ceil((expDate - now) / (1000 * 60 * 60 * 24));
+      const formattedDate = expDate.toISOString().split('T')[0];
+      if (diffDays <= 0) {
+        expBadge = `<span class="exp-danger">EXPIRED (${formattedDate})</span>`;
+        cardClass = 'card-expired';
+      } else if (diffDays <= 30) {
+        expBadge = `<span class="exp-warn">Expiring in ${diffDays}d (${formattedDate})</span>`;
+        cardClass = 'card-low-stock';
+      } else {
+        expBadge = `<span>Exp: ${formattedDate}</span>`;
+      }
+    }
+
+    if (item.quantity <= 1 && !cardClass) cardClass = 'card-low-stock';
+
+    let worthClass = item.worthIt === 'yes' ? 'worth-yes' : (item.worthIt === 'no' ? 'worth-no' : 'worth-maybe');
+    let worthText = item.worthIt ? t(item.worthIt) : '';
+
+    return `
+      <div class="product-card ${cardClass}">
+        <div class="product-top">
           <div>
-            <strong>${cat}</strong>
-            <div class="sub-category-pills">${subPills}</div>
+            <div class="product-title">${escapeHTML(item.name)}</div>
+            ${item.brand ? `<div class="product-sub">${escapeHTML(item.brand)}</div>` : ''}
+            <div class="loc-badge">📍 ${escapeHTML(item.mainLoc)}${item.subLoc ? ' › ' + escapeHTML(item.subLoc) : ''}</div>
           </div>
-          <div class="category-actions">
-            <button class="btn-delete-cat" onclick="deleteCategory('${cat.replace(/'/g, "\\'")}')">Delete</button>
+          <span class="status-badge status-${item.status === 'in_stock' ? 'in-stock' : (item.status === 'in_use' ? 'using' : 'finished')}">
+            ${item.status === 'in_stock' ? t('inStock') : (item.status === 'in_use' ? t('inUse') : t('finished'))}
+          </span>
+        </div>
+
+        <div class="product-meta">
+          <span class="sub-pill">${escapeHTML(item.category)}${item.subCategory ? ' / ' + escapeHTML(item.subCategory) : ''}</span>
+          ${expBadge}
+          ${worthText ? `<span class="worth-tag ${worthClass}">${worthText}</span>` : ''}
+        </div>
+
+        <div class="card-actions">
+          <div class="qty-controls">
+            <button class="btn-qty" onclick="changeQty('${item.id}', -1)">-</button>
+            <span class="qty-val">${item.quantity}</span>
+            <button class="btn-qty" onclick="changeQty('${item.id}', 1)">+</button>
+          </div>
+          <div class="action-btns">
+            <button class="btn-sm btn-edit" onclick="editItem('${item.id}')">Edit</button>
+            <button class="btn-sm btn-delete" onclick="deleteItem('${item.id}')">Delete</button>
           </div>
         </div>
-      </div>`;
-  });
-  container.innerHTML = html || '<p class="empty-msg">No custom categories yet.</p>';
+      </div>
+    `;
+  }).join('');
 }
 
-function deleteCategory(catName) {
-  if (!confirm(`Delete category "${catName}"?`)) return;
-  delete categoriesData[catName];
-  saveCategories();
-  initCategories();
-  renderCategoryManager();
-  showToast('Category deleted');
+function changeQty(id, delta) {
+  const item = items.find(i => i.id === id);
+  if (item) {
+    item.quantity = Math.max(0, item.quantity + delta);
+    saveState();
+    filterItems();
+  }
 }
 
-// ===== Form Handling =====
+function editItem(id) {
+  editingItemId = id;
+  activeTab = 'add';
+  renderView();
+}
+
+function deleteItem(id) {
+  if (confirm(t('confirmDelete'))) {
+    items = items.filter(i => i.id !== id);
+    saveState();
+    filterItems();
+  }
+}
+
+/* 3. Add / Edit Form */
+function renderAddEditForm(container) {
+  const item = editingItemId ? items.find(i => i.id === editingItemId) : null;
+
+  let catOptions = categories.map(c => `<option value="${escapeHTML(c.name)}" ${item && item.category === c.name ? 'selected' : ''}>${escapeHTML(c.name)}</option>`).join('');
+  let mainLocOptions = locations.map(l => `<option value="${escapeHTML(l.main)}" ${item && item.mainLoc === l.main ? 'selected' : ''}>${escapeHTML(l.main)}</option>`).join('');
+
+  container.innerHTML = `
+    <div class="card-section">
+      <h2>${item ? t('editTitle') : t('addTitle')}</h2>
+      <form id="item-form" onsubmit="handleFormSubmit(event)">
+        <div class="form-grid">
+          <div class="input-group">
+            <label>${t('nameLabel')}</label>
+            <input type="text" id="form-name" value="${item ? escapeHTML(item.name) : ''}" required>
+          </div>
+          <div class="input-group">
+            <label>${t('brandLabel')}</label>
+            <input type="text" id="form-brand" value="${item && item.brand ? escapeHTML(item.brand) : ''}">
+          </div>
+          
+          <div class="form-row">
+            <div class="input-group">
+              <label>${t('catLabel')}</label>
+              <select id="form-cat" onchange="updateSubCatDropdown()">${catOptions}</select>
+            </div>
+            <div class="input-group">
+              <label>${t('subCatLabel')}</label>
+              <select id="form-sub-cat"></select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="input-group">
+              <label>${t('mainLocLabel')}</label>
+              <select id="form-main-loc" onchange="updateSubLocDropdown()">${mainLocOptions}</select>
+            </div>
+            <div class="input-group">
+              <label>${t('subLocLabel')}</label>
+              <select id="form-sub-loc"></select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="input-group">
+              <label>${t('qtyLabel')}</label>
+              <input type="number" id="form-qty" min="0" value="${item ? item.quantity : 1}">
+            </div>
+            <div class="input-group">
+              <label>${t('statusLabel')}</label>
+              <select id="form-status">
+                <option value="in_stock" ${item && item.status === 'in_stock' ? 'selected' : ''}>${t('inStock')}</option>
+                <option value="in_use" ${item && item.status === 'in_use' ? 'selected' : ''}>${t('inUse')}</option>
+                <option value="finished" ${item && item.status === 'finished' ? 'selected' : ''}>${t('finished')}</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="input-group">
+              <label>${t('openedDateLabel')}</label>
+              <input type="date" id="form-opened" value="${item && item.openedDate ? item.openedDate : ''}">
+            </div>
+            <div class="input-group">
+              <label>${t('paoLabel')}</label>
+              <input type="number" id="form-pao" placeholder="e.g. 6 or 12" value="${item && item.paoMonths ? item.paoMonths : ''}">
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>${t('expiryDateLabel')}</label>
+            <input type="date" id="form-expiry" value="${item && item.expiryDate ? item.expiryDate : ''}">
+          </div>
+
+          <div class="input-group">
+            <label>${t('worthItLabel')}</label>
+            <select id="form-worth">
+              <option value="">-- Select --</option>
+              <option value="yes" ${item && item.worthIt === 'yes' ? 'selected' : ''}>${t('yes')}</option>
+              <option value="no" ${item && item.worthIt === 'no' ? 'selected' : ''}>${t('no')}</option>
+              <option value="maybe" ${item && item.worthIt === 'maybe' ? 'selected' : ''}>${t('maybe')}</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn-primary">${t('saveBtn')}</button>
+          ${item ? `<button type="button" class="btn-secondary" onclick="cancelEdit()">${t('cancelBtn')}</button>` : ''}
+        </div>
+      </form>
+    </div>
+  `;
+
+  updateSubCatDropdown(item ? item.subCategory : null);
+  updateSubLocDropdown(item ? item.subLoc : null);
+}
+
+function updateSubCatDropdown(selectedSub = null) {
+  const catName = document.getElementById('form-cat')?.value;
+  const subSelect = document.getElementById('form-sub-cat');
+  if (!subSelect) return;
+
+  const targetCat = categories.find(c => c.name === catName);
+  if (targetCat && targetCat.subs.length > 0) {
+    subSelect.innerHTML = targetCat.subs.map(s => `<option value="${escapeHTML(s)}" ${selectedSub === s ? 'selected' : ''}>${escapeHTML(s)}</option>`).join('');
+  } else {
+    subSelect.innerHTML = `<option value="">None</option>`;
+  }
+}
+
+function updateSubLocDropdown(selectedSub = null) {
+  const locName = document.getElementById('form-main-loc')?.value;
+  const subSelect = document.getElementById('form-sub-loc');
+  if (!subSelect) return;
+
+  const targetLoc = locations.find(l => l.main === locName);
+  if (targetLoc && targetLoc.subs.length > 0) {
+    subSelect.innerHTML = targetLoc.subs.map(s => `<option value="${escapeHTML(s)}" ${selectedSub === s ? 'selected' : ''}>${escapeHTML(s)}</option>`).join('');
+  } else {
+    subSelect.innerHTML = `<option value="">None</option>`;
+  }
+}
+
+function cancelEdit() {
+  editingItemId = null;
+  switchTab('items');
+}
+
 function handleFormSubmit(e) {
   e.preventDefault();
 
-  let category = document.getElementById('category').value;
-  let subCategory = document.getElementById('sub-category').value;
-
-  if (category === 'NEW') {
-    category = document.getElementById('custom-category').value.trim();
-    if (!category) return alert('Please enter a category name');
-  }
-  if (subCategory === 'NEW') {
-    subCategory = document.getElementById('custom-sub-category').value.trim();
-  }
-
-  if (category && subCategory) {
-    if (!categoriesData[category]) categoriesData[category] = [];
-    if (subCategory && !categoriesData[category].includes(subCategory)) {
-      categoriesData[category].push(subCategory);
-    }
-    saveCategories();
-    initCategories();
-    renderCategoryManager();
-  }
-
-  const name = document.getElementById('name').value.trim();
-  const brand = document.getElementById('brand').value.trim();
-  const size = document.getElementById('size').value.trim();
-  const lowThreshold = parseInt(document.getElementById('low-threshold').value) || 1;
-
-  const batchData = {
-    id: editBatchId || Date.now().toString() + Math.random().toString(36).slice(2, 6),
-    batchCode: document.getElementById('batch-code').value.trim(),
-    quantity: parseInt(document.getElementById('quantity').value) || 0,
-    price: parseFloat(document.getElementById('price').value) || 0,
-    status: document.getElementById('status').value,
-    purchaseDate: document.getElementById('purchase-date').value,
-    openedDate: document.getElementById('opened-date').value,
-    expiryDate: document.getElementById('expiry-date').value,
-    pao: document.getElementById('pao').value,
-    location: document.getElementById('location').value.trim(),
-    worth: document.getElementById('worth').value,
-    worthRemark: document.getElementById('worth-remark').value.trim()
+  const newItem = {
+    id: editingItemId || 'item_' + Date.now(),
+    name: document.getElementById('form-name').value.trim(),
+    brand: document.getElementById('form-brand').value.trim(),
+    category: document.getElementById('form-cat').value,
+    subCategory: document.getElementById('form-sub-cat').value,
+    mainLoc: document.getElementById('form-main-loc').value,
+    subLoc: document.getElementById('form-sub-loc').value,
+    quantity: parseInt(document.getElementById('form-qty').value) || 0,
+    status: document.getElementById('form-status').value,
+    openedDate: document.getElementById('form-opened').value,
+    paoMonths: document.getElementById('form-pao').value,
+    expiryDate: document.getElementById('form-expiry').value,
+    worthIt: document.getElementById('form-worth').value
   };
 
-  batchData.useByDate = computeUseBy(batchData.openedDate, batchData.pao);
-
-  let product = items.find(i => i.id === editItemId ||
-    (i.name.toLowerCase() === name.toLowerCase() && (i.brand || '').toLowerCase() === brand.toLowerCase()));
-
-  if (product) {
-    product.name = name;
-    product.brand = brand;
-    product.size = size;
-    product.category = category;
-    product.subCategory = subCategory;
-    product.lowThreshold = lowThreshold;
-
-    if (editBatchId) {
-      const bIdx = product.batches.findIndex(b => b.id === editBatchId);
-      if (bIdx !== -1) product.batches[bIdx] = batchData;
-    } else {
-      product.batches.push(batchData);
-    }
+  if (editingItemId) {
+    const idx = items.findIndex(i => i.id === editingItemId);
+    if (idx !== -1) items[idx] = newItem;
+    editingItemId = null;
   } else {
-    product = {
-      id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
-      name, brand, size, category, subCategory, lowThreshold,
-      batches: [batchData]
-    };
-    items.push(product);
+    items.push(newItem);
   }
 
-  saveItems();
-  resetForm();
-  showView('catalog');
-  showToast('Saved ✓');
+  saveState();
+  showToast(t('saved'));
+  switchTab('items');
 }
 
-function computeUseBy(openedDate, paoMonths) {
-  if (!openedDate || !paoMonths) return null;
-  const d = new Date(openedDate);
-  d.setMonth(d.getMonth() + parseInt(paoMonths));
-  return d.toISOString().slice(0, 10);
-}
+/* 4. Catalog Manager View */
+function renderCatalogManager(container) {
+  container.innerHTML = `
+    <div class="card-section">
+      <h2>${t('manageCats')}</h2>
+      <button class="btn-primary" style="width:100%; margin-bottom:12px;" onclick="addCategoryPrompt()">${t('addCatBtn')}</button>
+      <div id="cat-list"></div>
+    </div>
+  `;
 
-function resetForm() {
-  document.getElementById('item-form').reset();
-  editItemId = null;
-  editBatchId = null;
-  document.getElementById('form-heading').innerText = "Add Product Batch / 新增產品批號";
-  document.getElementById('submit-btn').innerText = "Add Batch";
-  document.getElementById('cancel-btn').style.display = "none";
-  document.getElementById('custom-category').style.display = "none";
-  document.getElementById('custom-sub-category').style.display = "none";
-}
-
-// ===== Dashboard & Insights =====
-function updateDashboard() {
-  let totalActive = 0;
-  let lowStockCount = 0;
-  let expiringSoonCount = 0;
-  const today = new Date();
-  const thirtyDaysLater = new Date();
-  thirtyDaysLater.setDate(today.getDate() + 30);
-
-  items.forEach(product => {
-    const activeBatches = product.batches.filter(b => b.status !== 'Finished');
-    const productActiveQty = activeBatches.reduce((acc, b) => acc + (b.quantity || 0), 0);
-    totalActive += productActiveQty;
-
-    if (productActiveQty <= (product.lowThreshold || 1) && activeBatches.length > 0) {
-      lowStockCount++;
-    }
-
-    product.batches.forEach(b => {
-      if (b.status === 'Finished') return;
-      const exp = getEffectiveExpiry(b);
-      if (exp && new Date(exp) <= thirtyDaysLater) {
-        expiringSoonCount++;
-      }
-    });
-  });
-
-  document.getElementById('dash-total').innerText = totalActive;
-  document.getElementById('dash-low').innerText = lowStockCount;
-  document.getElementById('dash-expiring').innerText = expiringSoonCount;
-  document.getElementById('dash-finished').innerText = archived.length;
-
-  const insightBox = document.getElementById('insight-box');
-  const insightText = document.getElementById('insight-text');
-  if (archived.length > 0) {
-    const avgDays = calculateAverageUsageDays();
-    if (avgDays) {
-      insightBox.style.display = 'block';
-      insightText.innerText = `Average product life (from finished items): ~${avgDays} days`;
-    } else {
-      insightBox.style.display = 'none';
-    }
-  } else {
-    insightBox.style.display = 'none';
-  }
-}
-
-function getEffectiveExpiry(batch) {
-  if (batch.expiryDate) return batch.expiryDate;
-  if (batch.useByDate) return batch.useByDate;
-  if (batch.openedDate && batch.pao) {
-    return computeUseBy(batch.openedDate, batch.pao);
-  }
-  return null;
-}
-
-function calculateAverageUsageDays() {
-  let totalDays = 0;
-  let count = 0;
-  archived.forEach(p => {
-    p.batches.forEach(b => {
-      if (b.purchaseDate && b.status === 'Finished') {
-        const start = new Date(b.purchaseDate);
-        const end = b.openedDate ? new Date(b.openedDate) : new Date();
-        const days = Math.round((end - start) / (1000 * 60 * 60 * 24));
-        if (days > 0 && days < 2000) {
-          totalDays += days;
-          count++;
-        }
-      }
-    });
-  });
-  return count > 0 ? Math.round(totalDays / count) : null;
-}
-
-// ===== One-tap Quantity & Status =====
-function changeQuantity(productId, batchId, delta) {
-  const product = items.find(p => p.id === productId);
-  if (!product) return;
-  const batch = product.batches.find(b => b.id === batchId);
-  if (!batch) return;
-
-  batch.quantity = Math.max(0, (batch.quantity || 0) + delta);
-  if (batch.quantity === 0 && batch.status !== 'Finished') {
-    batch.status = 'Finished';
-  }
-  saveItems();
-  renderItems();
-  showToast(`Quantity → ${batch.quantity}`);
-}
-
-function quickStatus(productId, batchId, newStatus) {
-  const product = items.find(p => p.id === productId);
-  if (!product) return;
-  const batch = product.batches.find(b => b.id === batchId);
-  if (!batch) return;
-
-  batch.status = newStatus;
-  saveItems();
-  renderItems();
-  showToast(`Status → ${newStatus}`);
-}
-
-// ===== Render Catalog =====
-function setTab(tab, btn) {
-  activeTab = tab;
-  document.querySelectorAll('#view-catalog .tabs .tab-btn').forEach(b => b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  renderItems();
-}
-
-function onFilterCategoryChange() {
-  const cat = document.getElementById('filter-category').value;
-  const subSelect = document.getElementById('filter-sub-category');
-  subSelect.innerHTML = '<option value="ALL">All Sub-categories</option>';
-  if (cat !== 'ALL' && categoriesData[cat]) {
-    categoriesData[cat].forEach(sub => {
-      subSelect.innerHTML += `<option value="${sub}">${sub}</option>`;
-    });
-  }
-  renderItems();
-}
-
-function renderLocationChips() {
-  const chipContainer = document.getElementById('location-chips');
-  if (!chipContainer) return;
-
-  const locations = new Set();
-  items.forEach(p => p.batches.forEach(b => { if (b.location) locations.add(b.location); }));
-
-  let html = `<button type="button" class="tab-btn ${activeLocationFilter === 'ALL' ? 'active' : ''}" onclick="setLocationFilter('ALL')">All</button>`;
-  Array.from(locations).forEach(loc => {
-    const isActive = activeLocationFilter === loc ? 'active' : '';
-    html += `<button type="button" class="tab-btn ${isActive}" onclick="setLocationFilter('${loc.replace(/'/g, "\\'")}')">📍 ${loc}</button>`;
-  });
-  chipContainer.innerHTML = html;
-}
-
-function setLocationFilter(loc) {
-  activeLocationFilter = loc;
-  renderItems();
-}
-
-function renderItems() {
-  renderLocationChips();
-  const search = (document.getElementById('search-input')?.value || '').toLowerCase();
-  const filterCat = document.getElementById('filter-category')?.value || 'ALL';
-  const filterSub = document.getElementById('filter-sub-category')?.value || 'ALL';
-  const today = new Date();
-  const thirtyDaysLater = new Date();
-  thirtyDaysLater.setDate(today.getDate() + 30);
-
-  const filtered = items.filter(product => {
-    if (filterCat !== 'ALL' && product.category !== filterCat) return false;
-    if (filterSub !== 'ALL' && product.subCategory !== filterSub) return false;
-
-    const searchable = `${product.name} ${product.brand || ''} ${product.size || ''} ${product.category} ${product.subCategory || ''} ${product.batches.map(b => `${b.batchCode || ''} ${b.location || ''} ${b.worthRemark || ''}`).join(' ')}`.toLowerCase();
-    if (search && !searchable.includes(search)) return false;
-
-    if (activeLocationFilter !== 'ALL') {
-      if (!product.batches.some(b => b.location === activeLocationFilter)) return false;
-    }
-
-    const activeBatches = product.batches.filter(b => b.status !== 'Finished');
-    const totalActiveQty = activeBatches.reduce((acc, b) => acc + (b.quantity || 0), 0);
-
-    if (activeTab === 'LOW_STOCK') {
-      return totalActiveQty <= (product.lowThreshold || 1) && activeBatches.length > 0;
-    }
-    if (activeTab === 'EXPIRING') {
-      return product.batches.some(b => {
-        if (b.status === 'Finished') return false;
-        const exp = getEffectiveExpiry(b);
-        return exp && new Date(exp) <= thirtyDaysLater;
-      });
-    }
-    if (activeTab === 'FINISHED') {
-      return product.batches.some(b => b.status === 'Finished');
-    }
-    return true;
-  });
-
-  const listContainer = document.getElementById('items-list');
-  if (listContainer) {
-    listContainer.innerHTML = renderProductListHTML(filtered);
-  }
-}
-
-function renderProductListHTML(productList) {
-  if (productList.length === 0) {
-    return '<p class="empty-msg">No products matching your criteria.<br>Try clearing filters or add a new item.</p>';
-  }
-
-  return productList.map(product => {
-    const activeBatches = product.batches.filter(b => b.status !== 'Finished');
-    const totalQty = activeBatches.reduce((sum, b) => sum + (b.quantity || 0), 0);
-    const isLowStock = totalQty <= (product.lowThreshold || 1) && activeBatches.length > 0;
-    const sizeDisplay = product.size ? ` • <strong>${product.size}</strong>` : '';
-
-    const batchesHTML = product.batches.map(batch => {
-      let statusClass = 'status-in-stock';
-      if (batch.status === 'Using') statusClass = 'status-using';
-      if (batch.status === 'Finished') statusClass = 'status-finished';
-
-      let worthClass = 'worth-maybe';
-      if (batch.worth === 'Yes') worthClass = 'worth-yes';
-      if (batch.worth === 'No') worthClass = 'worth-no';
-
-      const effectiveExp = getEffectiveExpiry(batch);
-      const isExpiringSoon = effectiveExp && (new Date(effectiveExp) - new Date()) < 30 * 24 * 60 * 60 * 1000;
-
-      return `
-        <div class="batch-row ${isExpiringSoon ? 'batch-expiring' : ''}">
-          <div class="batch-main-info">
-            <div class="batch-pills">
-              <span class="status-badge ${statusClass}">${batch.status}</span>
-              <span class="qty-pill">Qty: <strong>${batch.quantity}</strong></span>
-              ${batch.price ? `<span class="qty-pill">💰 ${batch.price}</span>` : ''}
-              ${batch.batchCode ? `<span class="batch-pill">Lot: ${batch.batchCode}</span>` : ''}
-              ${batch.location ? `<span class="batch-pill muted">📍 ${batch.location}</span>` : ''}
-            </div>
-            <div class="batch-dates">
-              ${batch.purchaseDate ? `<span>Bought: ${batch.purchaseDate}</span>` : ''}
-              ${batch.openedDate ? `<span>Opened: ${batch.openedDate}</span>` : ''}
-              ${effectiveExp ? `<span class="${isExpiringSoon ? 'exp-warn' : ''}">Use by: <strong>${effectiveExp}</strong></span>` : ''}
-              ${batch.pao ? `<span>PAO: ${batch.pao}M</span>` : ''}
-            </div>
-            ${batch.worth ? `
-              <div class="worth-tag ${worthClass}">
-                Repurchase: <strong>${batch.worth}</strong> ${batch.worthRemark ? `(${batch.worthRemark})` : ''}
-              </div>` : ''}
-          </div>
-
-          <div class="quick-actions">
-            <button class="btn-qty" onclick="changeQuantity('${product.id}', '${batch.id}', -1)">−</button>
-            <button class="btn-qty" onclick="changeQuantity('${product.id}', '${batch.id}', 1)">+</button>
-            <button class="btn-status" onclick="quickStatus('${product.id}', '${batch.id}', 'Using')">Using</button>
-            <button class="btn-status" onclick="quickStatus('${product.id}', '${batch.id}', 'Finished')">Finish</button>
-          </div>
-
-          <div class="batch-actions">
-            ${batch.batchCode ? `<button class="btn-search-batch" onclick="searchBatchOnline('${batch.batchCode}', '${(product.brand || '').replace(/'/g, "\\'")}')">🔍 Check</button>` : ''}
-            <button class="btn-edit" onclick="editBatch('${product.id}', '${batch.id}')">Edit</button>
-            <button class="btn-delete" onclick="deleteBatch('${product.id}', '${batch.id}')">Delete</button>
-          </div>
-        </div>`;
-    }).join('');
-
-    return `
-      <div class="product-card ${isLowStock ? 'card-low-stock' : ''}">
-        <div class="product-header">
-          <div>
-            <h3>${product.name}</h3>
-            <div class="product-sub">
-              ${product.brand ? `<strong>${product.brand}</strong>` : ''}
-              ${sizeDisplay}
-              <span style="margin-left:4px;color:var(--text-muted);">
-                [${product.category}${product.subCategory ? ' / ' + product.subCategory : ''}]
-              </span>
-            </div>
-          </div>
-          <div class="product-header-right">
-            <span class="total-qty-badge" style="background:${isLowStock ? '#ffe8e8' : '#e6f9ed'};color:${isLowStock ? '#d90429' : '#1e7e34'}">
-              Total: ${totalQty}
-            </span>
-            <button class="btn-quick-add" onclick="quickAddBatch('${product.id}')">➕ Batch</button>
-          </div>
+  const catList = document.getElementById('cat-list');
+  catList.innerHTML = categories.map((cat, idx) => `
+    <div class="manage-row">
+      <div>
+        <div class="manage-title">${escapeHTML(cat.name)}</div>
+        <div class="sub-pills">
+          ${cat.subs.map(s => `<span class="sub-pill">${escapeHTML(s)}</span>`).join('')}
         </div>
-        <div class="batch-list">${batchesHTML}</div>
-      </div>`;
-  }).join('');
-}
-
-// ===== Quick Add / Edit / Delete =====
-function quickAddBatch(productId) {
-  const product = items.find(p => p.id === productId);
-  if (!product) return;
-  resetForm();
-  editItemId = productId;
-  editBatchId = null;
-  document.getElementById('name').value = product.name;
-  document.getElementById('brand').value = product.brand || '';
-  document.getElementById('size').value = product.size || '';
-  document.getElementById('category').value = product.category;
-  onCategoryChange();
-  document.getElementById('sub-category').value = product.subCategory || '';
-  document.getElementById('low-threshold').value = product.lowThreshold || 1;
-  document.getElementById('form-heading').innerText = `Add New Batch for "${product.name}"`;
-  document.getElementById('submit-btn').innerText = "Add New Batch";
-  document.getElementById('cancel-btn').style.display = "inline-block";
-  showView('add');
-}
-
-function editBatch(productId, batchId) {
-  const product = items.find(p => p.id === productId);
-  if (!product) return;
-  const batch = product.batches.find(b => b.id === batchId);
-  if (!batch) return;
-
-  editItemId = productId;
-  editBatchId = batchId;
-
-  document.getElementById('name').value = product.name;
-  document.getElementById('brand').value = product.brand || '';
-  document.getElementById('size').value = product.size || '';
-  document.getElementById('category').value = product.category;
-  onCategoryChange();
-  document.getElementById('sub-category').value = product.subCategory || '';
-  document.getElementById('low-threshold').value = product.lowThreshold || 1;
-  document.getElementById('batch-code').value = batch.batchCode || '';
-  document.getElementById('quantity').value = batch.quantity || 1;
-  document.getElementById('price').value = batch.price || '';
-  document.getElementById('status').value = batch.status || 'In Stock';
-  document.getElementById('purchase-date').value = batch.purchaseDate || '';
-  document.getElementById('opened-date').value = batch.openedDate || '';
-  document.getElementById('expiry-date').value = batch.expiryDate || '';
-  document.getElementById('pao').value = batch.pao || '';
-  document.getElementById('location').value = batch.location || '';
-  document.getElementById('worth').value = batch.worth || '';
-  document.getElementById('worth-remark').value = batch.worthRemark || '';
-
-  document.getElementById('form-heading').innerText = "Edit Product Batch";
-  document.getElementById('submit-btn').innerText = "Update Batch";
-  document.getElementById('cancel-btn').style.display = "inline-block";
-  showView('add');
-}
-
-function deleteBatch(productId, batchId) {
-  if (!confirm('Delete this batch?')) return;
-  const product = items.find(p => p.id === productId);
-  if (!product) return;
-
-  product.batches = product.batches.filter(b => b.id !== batchId);
-  if (product.batches.length === 0) {
-    items = items.filter(p => p.id !== productId);
-  }
-  saveItems();
-  renderItems();
-  showToast('Batch deleted');
-}
-
-function searchBatchOnline(batchCode, brand) {
-  const query = encodeURIComponent(`${brand} ${batchCode} batch code`);
-  window.open(`https://www.google.com/search?q=${query}`, '_blank');
-}
-
-// ===== Shopping List =====
-function renderShoppingList() {
-  const container = document.getElementById('shopping-list');
-  const lowItems = items.filter(product => {
-    const activeBatches = product.batches.filter(b => b.status !== 'Finished');
-    const qty = activeBatches.reduce((a, b) => a + (b.quantity || 0), 0);
-    return qty <= (product.lowThreshold || 1) && activeBatches.length > 0;
-  });
-
-  if (lowItems.length === 0) {
-    container.innerHTML = '<p class="empty-msg">🎉 Nothing needs restocking right now!</p>';
-    return;
-  }
-
-  container.innerHTML = lowItems.map(p => {
-    const qty = p.batches.filter(b => b.status !== 'Finished').reduce((a, b) => a + (b.quantity || 0), 0);
-    return `
-      <div class="shopping-item">
-        <div>
-          <strong>${p.name}</strong>
-          ${p.brand ? ` · ${p.brand}` : ''}
-          ${p.size ? ` · ${p.size}` : ''}
-        </div>
-        <div class="shopping-meta">Current: ${qty} (alert ≤ ${p.lowThreshold || 1})</div>
-      </div>`;
-  }).join('');
-}
-
-function exportShoppingList() {
-  const lowItems = items.filter(product => {
-    const activeBatches = product.batches.filter(b => b.status !== 'Finished');
-    const qty = activeBatches.reduce((a, b) => a + (b.quantity || 0), 0);
-    return qty <= (product.lowThreshold || 1) && activeBatches.length > 0;
-  });
-
-  let text = "Shopping List - Check It YourShelf\n" + new Date().toLocaleDateString() + "\n\n";
-  lowItems.forEach(p => {
-    text += `• ${p.name}${p.brand ? ' (' + p.brand + ')' : ''}${p.size ? ' - ' + p.size : ''}\n`;
-  });
-
-  const blob = new Blob([text], { type: 'text/plain' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `shopping_list_${new Date().toISOString().slice(0,10)}.txt`;
-  a.click();
-  showToast('List exported');
-}
-
-// ===== Archive =====
-function renderArchive() {
-  const container = document.getElementById('archive-list');
-  if (archived.length === 0) {
-    container.innerHTML = '<p class="empty-msg">No archived items yet.</p>';
-    return;
-  }
-  container.innerHTML = archived.map(p => `
-    <div class="product-card">
-      <div class="product-header">
-        <div>
-          <h3>${p.name}</h3>
-          <div class="product-sub">${p.brand || ''} ${p.size || ''} · ${p.category}</div>
-        </div>
+      </div>
+      <div>
+        <button class="btn-sm btn-edit" onclick="addSubCatPrompt(${idx})">${t('addSubCatBtn')}</button>
+        <button class="btn-sm btn-delete" onclick="deleteCategory(${idx})">✕</button>
       </div>
     </div>
   `).join('');
 }
 
-// ===== Browse =====
-function initBrowseView() {
-  const container1 = document.getElementById('main-cat-buttons');
-  const step2 = document.getElementById('browse-step-2');
-  const results = document.getElementById('browse-results');
-  step2.style.display = 'none';
-  results.innerHTML = '';
-
-  let html = '';
-  Object.keys(categoriesData).forEach(cat => {
-    html += `<button type="button" class="tab-btn" onclick="selectBrowseMain('${cat.replace(/'/g, "\\'")}', this)">${cat}</button>`;
-  });
-  container1.innerHTML = html || '<p class="empty-msg">No categories yet. Add an item first.</p>';
-}
-
-function selectBrowseMain(mainCat, btn) {
-  document.querySelectorAll('#main-cat-buttons .tab-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-
-  const container2 = document.getElementById('sub-cat-buttons');
-  const step2 = document.getElementById('browse-step-2');
-  const subs = categoriesData[mainCat] || [];
-
-  let html = `<button type="button" class="tab-btn" onclick="filterBrowseResults('${mainCat.replace(/'/g, "\\'")}', 'ALL', this)">All</button>`;
-  subs.forEach(sub => {
-    html += `<button type="button" class="tab-btn" onclick="filterBrowseResults('${mainCat.replace(/'/g, "\\'")}', '${sub.replace(/'/g, "\\'")}', this)">${sub}</button>`;
-  });
-  container2.innerHTML = html;
-  step2.style.display = 'block';
-  filterBrowseResults(mainCat, 'ALL', null);
-}
-
-function filterBrowseResults(mainCat, subCat, btn) {
-  if (btn) {
-    document.querySelectorAll('#sub-cat-buttons .tab-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-  }
-  const results = document.getElementById('browse-results');
-  const filtered = items.filter(i => {
-    const matchMain = i.category === mainCat;
-    const matchSub = (subCat === 'ALL') || (i.subCategory === subCat);
-    return matchMain && matchSub;
-  });
-  results.innerHTML = filtered.length === 0
-    ? '<p class="empty-msg">No products in this category.</p>'
-    : renderProductListHTML(filtered);
-}
-
-// ===== Datalists =====
-function updateDatalists() {
-  const prodDatalist = document.getElementById('product-suggestions');
-  const brandDatalist = document.getElementById('brand-suggestions');
-  if (prodDatalist) {
-    const names = [...new Set(items.map(i => i.name).filter(Boolean))];
-    prodDatalist.innerHTML = names.map(n => `<option value="${n}">`).join('');
-  }
-  if (brandDatalist) {
-    const brands = [...new Set(items.map(i => i.brand).filter(Boolean))];
-    brandDatalist.innerHTML = brands.map(b => `<option value="${b}">`).join('');
+function addCategoryPrompt() {
+  const name = prompt("Enter new main category name:");
+  if (name && name.trim()) {
+    categories.push({ name: name.trim(), subs: [] });
+    saveState();
+    renderCatalogManager(document.getElementById('main-content'));
   }
 }
 
-// ===== Export / Import / Backup =====
-function exportData(format = 'json') {
-  if (format === 'json') {
-    const data = {
-      schemaVersion: SCHEMA_VERSION,
-      exportedAt: new Date().toISOString(),
-      items,
-      categoriesData,
-      archived
+function addSubCatPrompt(catIndex) {
+  const subName = prompt(`Enter sub-category for ${categories[catIndex].name}:`);
+  if (subName && subName.trim()) {
+    categories[catIndex].subs.push(subName.trim());
+    saveState();
+    renderCatalogManager(document.getElementById('main-content'));
+  }
+}
+
+function deleteCategory(index) {
+  if (confirm("Delete category?")) {
+    categories.splice(index, 1);
+    saveState();
+    renderCatalogManager(document.getElementById('main-content'));
+  }
+}
+
+/* 5. Location Manager View */
+function renderLocationManager(container) {
+  container.innerHTML = `
+    <div class="card-section">
+      <h2>${t('manageLocs')}</h2>
+      <button class="btn-primary" style="width:100%; margin-bottom:12px;" onclick="addMainLocationPrompt()">${t('addMainLocBtn')}</button>
+      <div id="loc-list"></div>
+    </div>
+  `;
+
+  const locList = document.getElementById('loc-list');
+  locList.innerHTML = locations.map((loc, idx) => `
+    <div class="manage-row">
+      <div>
+        <div class="manage-title">📍 ${escapeHTML(loc.main)}</div>
+        <div class="sub-pills">
+          ${loc.subs.map(s => `<span class="sub-pill">${escapeHTML(s)}</span>`).join('')}
+        </div>
+      </div>
+      <div>
+        <button class="btn-sm btn-edit" onclick="addSubLocPrompt(${idx})">${t('addSubLocBtn')}</button>
+        <button class="btn-sm btn-delete" onclick="deleteLocation(${idx})">✕</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function addMainLocationPrompt() {
+  const main = prompt("Enter new room/main location:");
+  if (main && main.trim()) {
+    locations.push({ main: main.trim(), subs: [] });
+    saveState();
+    renderLocationManager(document.getElementById('main-content'));
+  }
+}
+
+function addSubLocPrompt(locIndex) {
+  const sub = prompt(`Enter storage spot for ${locations[locIndex].main}:`);
+  if (sub && sub.trim()) {
+    locations[locIndex].subs.push(sub.trim());
+    saveState();
+    renderLocationManager(document.getElementById('main-content'));
+  }
+}
+
+function deleteLocation(index) {
+  if (confirm("Delete location?")) {
+    locations.splice(index, 1);
+    saveState();
+    renderLocationManager(document.getElementById('main-content'));
+  }
+}
+
+/* 6. Shopping View */
+function renderShoppingView(container) {
+  container.innerHTML = `
+    <div class="card-section">
+      <h2>${t('shoppingList')}</h2>
+      <div style="display:flex; gap:8px; margin-bottom:12px;">
+        <input type="text" id="shop-input" placeholder="${t('addShopPlaceholder')}">
+        <button class="btn-primary" style="flex:none; padding:0 16px;" onclick="addShopItem()">Add</button>
+      </div>
+      <div id="shop-list"></div>
+    </div>
+  `;
+  renderShopList();
+}
+
+function renderShopList() {
+  const listEl = document.getElementById('shop-list');
+  if (!listEl) return;
+
+  if (shoppingList.length === 0) {
+    listEl.innerHTML = `<div class="empty-msg">Shopping list is empty.</div>`;
+    return;
+  }
+
+  listEl.innerHTML = shoppingList.map((item, idx) => `
+    <div class="manage-row">
+      <span class="manage-title">${escapeHTML(item)}</span>
+      <button class="btn-sm btn-delete" onclick="removeShopItem(${idx})">Done ✓</button>
+    </div>
+  `).join('');
+}
+
+function addShopItem() {
+  const input = document.getElementById('shop-input');
+  if (input && input.value.trim()) {
+    shoppingList.push(input.value.trim());
+    input.value = '';
+    saveState();
+    renderShopList();
+  }
+}
+
+function removeShopItem(index) {
+  shoppingList.splice(index, 1);
+  saveState();
+  renderShopList();
+}
+
+/* 7. Settings View */
+function renderSettingsView(container) {
+  container.innerHTML = `
+    <div class="card-section">
+      <h2>${t('settings')}</h2>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <button class="btn-secondary" onclick="exportData()">${t('exportData')}</button>
+        <button class="btn-secondary" onclick="importData()">${t('importData')}</button>
+        <button class="btn-sm btn-delete" style="height:44px; margin-top:10px;" onclick="clearAllData()">${t('clearData')}</button>
+      </div>
+    </div>
+  `;
+}
+
+function exportData() {
+  const data = { items, categories, locations, shoppingList };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `yourshelf-backup-${new Date().toISOString().split('T')[0]}.json`;
+  a.click();
+}
+
+function importData() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/json';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = event => {
+      try {
+        const parsed = JSON.parse(event.target.result);
+        if (parsed.items) items = parsed.items;
+        if (parsed.categories) categories = parsed.categories;
+        if (parsed.locations) locations = parsed.locations;
+        if (parsed.shoppingList) shoppingList = parsed.shoppingList;
+        saveState();
+        showToast('Data imported successfully!');
+        switchTab('items');
+      } catch (err) {
+        alert('Invalid JSON file format.');
+      }
     };
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
-    const a = document.createElement('a');
-    a.href = dataStr;
-    a.download = `yourshelf_backup_${new Date().toISOString().slice(0,10)}.json`;
-    a.click();
-    showToast('JSON backup downloaded');
-  } else if (format === 'csv') {
-    let csv = "Name,Brand,Size,Category,SubCategory,BatchCode,Quantity,Status,Price,Location,PurchaseDate,OpenedDate,ExpiryDate,PAO,UseBy,Worth,Notes\n";
-    items.forEach(p => {
-      p.batches.forEach(b => {
-        const useBy = getEffectiveExpiry(b) || '';
-        csv += `"${p.name}","${p.brand || ''}","${p.size || ''}","${p.category}","${p.subCategory || ''}","${b.batchCode || ''}",${b.quantity},"${b.status}",${b.price || ''},"${b.location || ''}","${b.purchaseDate || ''}","${b.openedDate || ''}","${b.expiryDate || ''}","${b.pao || ''}","${useBy}","${b.worth || ''}","${b.worthRemark || ''}"\n`;
-      });
-    });
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `yourshelf_${new Date().toISOString().slice(0,10)}.csv`;
-    a.click();
-    showToast('CSV exported');
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+function clearAllData() {
+  if (confirm("Are you sure you want to reset all inventory and settings data?")) {
+    localStorage.clear();
+    location.reload();
   }
-}
-
-function importData(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  // Reset input so the same file can be selected again later
-  event.target.value = '';
-
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    try {
-      const parsed = JSON.parse(e.target.result);
-
-      // Support both the new full format and older simple formats
-      if (parsed.items && Array.isArray(parsed.items)) {
-        if (!confirm(`Import this backup?\n\n• ${parsed.items.length} products\n• Exported: ${parsed.exportedAt ? new Date(parsed.exportedAt).toLocaleString() : 'Unknown'}\n\nThis will replace your current data.`)) {
-          return;
-        }
-
-        items = parsed.items;
-        if (parsed.categoriesData) categoriesData = parsed.categoriesData;
-        if (parsed.archived) archived = parsed.archived;
-
-        saveItems();
-        saveCategories();
-        saveArchive();
-        initCategories();
-        renderCategoryManager();
-        renderItems();
-        updateDashboard();
-        showWelcomeIfEmpty();
-
-        showToast('Import successful ✓');
-        alert('Data imported successfully!\n\nYour inventory has been restored.');
-      } else {
-        alert('Invalid backup file.\n\nPlease select a JSON file that was exported from this app.');
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Could not read the file.\n\nMake sure it is a valid .json backup exported from Check It YourShelf.');
-    }
-  };
-  reader.onerror = function() {
-    alert('Error reading the file. Please try again.');
-  };
-  reader.readAsText(file);
-}
-
-function createBackup() {
-  const backups = JSON.parse(localStorage.getItem(STORAGE_KEY_BACKUPS) || '[]');
-  const backup = {
-    id: Date.now().toString(),
-    date: new Date().toISOString(),
-    items: JSON.parse(JSON.stringify(items)),
-    categoriesData: JSON.parse(JSON.stringify(categoriesData)),
-    archived: JSON.parse(JSON.stringify(archived))
-  };
-  backups.unshift(backup);
-  if (backups.length > 5) backups.length = 5;
-  localStorage.setItem(STORAGE_KEY_BACKUPS, JSON.stringify(backups));
-
-  const meta = getMeta();
-  meta.lastBackup = backup.date;
-  saveMeta(meta);
-
-  showToast('Local backup created');
-  updateSettingsView();
-}
-
-function checkAutoBackup() {
-  const meta = getMeta();
-  const last = meta.lastBackup ? new Date(meta.lastBackup) : null;
-  const now = new Date();
-  if (!last || (now - last) > 14 * 24 * 60 * 60 * 1000) {
-    setTimeout(() => {
-      if (items.length > 0 && confirm('It has been a while since your last backup.\n\nCreate a local backup now? (Recommended)')) {
-        createBackup();
-      }
-    }, 2500);
-  }
-}
-
-function updateSettingsView() {
-  const meta = getMeta();
-  document.getElementById('last-backup-date').innerText =
-    meta.lastBackup ? new Date(meta.lastBackup).toLocaleString() : 'Never';
-}
-
-// ===== Toast =====
-function showToast(msg) {
-  const toast = document.getElementById('toast');
-  toast.innerText = msg;
-  toast.style.display = 'block';
-  setTimeout(() => { toast.style.display = 'none'; }, 2200);
 }
