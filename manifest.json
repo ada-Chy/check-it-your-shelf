@@ -1,13 +1,13 @@
 {
   "name": "Check It YourShelf",
-  "short_name": "YourShelf",
+  "short_name": "CheckItYourShelf",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#f6f8fb",
   "theme_color": "#1d64d8",
   "icons": [
     {
-      "src": "Picture%201.png",
+      "src": "icon.png",
       "sizes": "180x180",
       "type": "image/png"
     }

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'yourshelf-v3';
+const CACHE_NAME = 'yourshelf-v4';
 const ASSETS = [
   './',
   './index.html',
