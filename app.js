@@ -480,10 +480,15 @@ function renderDashboard() {
   const expired = productsData.filter(p => p.expDate && p.expDate < today).length;
   const expiring = productsData.filter(p => p.expDate && p.expDate >= today && p.expDate <= thirtyDaysOut).length;
 
-  document.getElementById('dash-total').innerText = total;
-  document.getElementById('dash-low').innerText = low;
-  document.getElementById('dash-expiring').innerText = expiring;
-  document.getElementById('dash-expired').innerText = expired;
+  const totalEl = document.getElementById('dash-total');
+  const lowEl = document.getElementById('dash-low');
+  const expiringEl = document.getElementById('dash-expiring');
+  const expiredEl = document.getElementById('dash-expired');
+
+  if (totalEl) totalEl.innerText = total;
+  if (lowEl) lowEl.innerText = low;
+  if (expiringEl) expiringEl.innerText = expiring;
+  if (expiredEl) expiredEl.innerText = expired;
 }
 
 window.renderInventory = function() {
