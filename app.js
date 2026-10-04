@@ -28,7 +28,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// HOUSEHOLD SYNC KEY FOR CROSS-DEVICE SHARING
+// HOUSEHOLD SYNC KEY
 let HOUSEHOLD_ID = localStorage.getItem('yourshelf_household_id') || 'default_household';
 
 // PRE-DEFINED DEFAULT DATA
@@ -51,45 +51,58 @@ let categoriesData = [];
 let locationsData = [];
 let productsData = [];
 let activeFilterStatus = 'all';
-
 let unsubs = [];
 
 // INITIALIZATION
 document.addEventListener('DOMContentLoaded', () => {
-  setupHouseholdSyncInput();
+  renderSettingsTab();
   initFirestoreListeners();
 });
 
-function setupHouseholdSyncInput() {
-  const settingsCard = document.querySelector('#tab-settings .form-grid');
-  if (settingsCard && !document.getElementById('sync-code-input')) {
-    const syncGroup = document.createElement('div');
-    syncGroup.style.gridColumn = '1 / -1';
-    syncGroup.style.marginBottom = '15px';
-    syncGroup.innerHTML = `
-      <label style="font-weight:bold; display:block; margin-bottom:5px;">Household Sync Key (Cross-Device):</label>
-      <div style="display:flex; gap:8px;">
-        <input type="text" id="sync-code-input" value="${escapeHtml(HOUSEHOLD_ID)}" style="flex:1; padding:8px; border:1px solid #ccc; border-radius:6px;">
-        <button type="button" class="btn-primary" onclick="changeHouseholdKey()">Update Key</button>
+// RENDER SETTINGS TAB WITH SYNC KEY
+function renderSettingsTab() {
+  const settingsTab = document.getElementById('tab-settings');
+  if (!settingsTab) return;
+
+  settingsTab.innerHTML = `
+    <div class="card" style="background:#fff; padding:20px; border-radius:12px; max-width:600px; margin:0 auto; box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+      <h2 style="margin-top:0; margin-bottom:15px; color:#333;">Settings & Cross-Device Sync</h2>
+      
+      <div style="background:#f0f4f8; padding:15px; border-radius:8px; margin-bottom:20px; border:1px solid #d0d7de;">
+        <label style="font-weight:bold; display:block; margin-bottom:8px; color:#1f2937;">Household Sync Key:</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="sync-code-input" value="${escapeHtml(HOUSEHOLD_ID)}" style="flex:1; padding:10px; border:1px solid #ccc; border-radius:6px; font-size:14px;">
+          <button type="button" class="btn-primary" onclick="changeHouseholdKey()" style="padding:10px 16px; background:#1d64d8; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">Update Key</button>
+        </div>
+        <small style="color:#666; display:block; margin-top:8px; line-height:1.4;">
+          Enter the exact same key on all devices (e.g. phones, tablets, PCs) to automatically share and sync all categories, locations, and inventory in real time.
+        </small>
       </div>
-      <small style="color:#666;">Enter the exact same key on all devices to share catalog, locations, and inventory.</small>
-    `;
-    settingsCard.prepend(syncGroup);
-  }
+
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <button class="btn-secondary" onclick="exportData()" style="padding:12px; border:1px solid #ccc; background:#fff; border-radius:6px; cursor:pointer; font-weight:600;">Export Data (JSON)</button>
+        <button class="btn-secondary" onclick="document.getElementById('import-file').click()" style="padding:12px; border:1px solid #ccc; background:#fff; border-radius:6px; cursor:pointer; font-weight:600;">Import Data (JSON)</button>
+        <input type="file" id="import-file" style="display:none" onchange="importData(event)">
+        <button class="btn-danger" onclick="clearAllData()" style="padding:12px; border:none; background:#fee2e2; color:#dc2626; border-radius:6px; cursor:pointer; font-weight:bold; margin-top:10px;">Reset All Data</button>
+      </div>
+    </div>
+  `;
 }
 
 window.changeHouseholdKey = function() {
   const newKey = document.getElementById('sync-code-input').value.trim();
-  if (newKey && newKey !== HOUSEHOLD_ID) {
+  if (newKey) {
     HOUSEHOLD_ID = newKey;
     localStorage.setItem('yourshelf_household_id', HOUSEHOLD_ID);
     showToast(`Sync Key set to: ${HOUSEHOLD_ID}`);
     initFirestoreListeners();
+  } else {
+    alert('Please enter a valid Sync Key.');
   }
 };
 
+// FIRESTORE LISTENERS
 function initFirestoreListeners() {
-  // Unsubscribe old listeners if key changed
   unsubs.forEach(unsub => unsub());
   unsubs = [];
 
@@ -132,7 +145,7 @@ function initFirestoreListeners() {
   unsubs.push(unsubProd);
 }
 
-// SEED DEFAULTS WITH HOUSEHOLD ID
+// SEED DEFAULTS
 async function seedDefaultCategories() {
   for (const cat of DEFAULT_CATEGORIES) {
     await addDoc(collection(db, "categories"), { ...cat, householdId: HOUSEHOLD_ID });
@@ -145,7 +158,7 @@ async function seedDefaultLocations() {
   }
 }
 
-// AUTO-PREDICTION DATALISTS
+// DATALISTS
 function updateDatalists() {
   const names = [...new Set(productsData.map(p => p.name).filter(Boolean))];
   const brands = [...new Set(productsData.map(p => p.brand).filter(Boolean))];
@@ -162,7 +175,7 @@ function populateDatalist(elementId, items) {
   listElement.innerHTML = items.map(item => `<option value="${escapeHtml(item)}">`).join('');
 }
 
-// DROPDOWNS
+// DROPDOWN RENDERERS
 function renderAllDropdowns() {
   renderCategoryDropdown();
   renderRoomDropdown();
@@ -177,7 +190,6 @@ function renderCategoryDropdown(selectedCat = '') {
     const sel = c.name === selectedCat ? 'selected' : '';
     html += `<option value="${escapeHtml(c.name)}" ${sel}>${escapeHtml(c.name)}</option>`;
   });
-  html += `<option value="__ADD_NEW_CAT__" style="font-weight: bold; color: #1d64d8;">+ Add New Category...</option>`;
   select.innerHTML = html;
   
   renderSubCategoryDropdown(selectedCat || select.value);
@@ -196,7 +208,6 @@ function renderSubCategoryDropdown(categoryName, selectedSub = '') {
       html += `<option value="${escapeHtml(s)}" ${sel}>${escapeHtml(s)}</option>`;
     });
   }
-  html += `<option value="__ADD_NEW_SUBCAT__" style="font-weight: bold; color: #1d64d8;">+ Add New Sub-Category...</option>`;
   select.innerHTML = html;
 }
 
@@ -209,7 +220,6 @@ function renderRoomDropdown(selectedRoom = '') {
     const sel = l.name === selectedRoom ? 'selected' : '';
     html += `<option value="${escapeHtml(l.name)}" ${sel}>${escapeHtml(l.name)}</option>`;
   });
-  html += `<option value="__ADD_NEW_ROOM__" style="font-weight: bold; color: #1d64d8;">+ Add New Room...</option>`;
   select.innerHTML = html;
   
   renderSpotDropdown(selectedRoom || select.value);
@@ -228,177 +238,165 @@ function renderSpotDropdown(roomName, selectedSpot = '') {
       html += `<option value="${escapeHtml(s)}" ${sel}>${escapeHtml(s)}</option>`;
     });
   }
-  html += `<option value="__ADD_NEW_SPOT__" style="font-weight: bold; color: #1d64d8;">+ Add New Storage Spot...</option>`;
   select.innerHTML = html;
 }
 
-// EVENT HANDLERS FOR SELECT ONCHANGE
+// SELECT CHANGE HANDLERS
 window.handleCategoryChange = function(select) {
-  if (select.value === '__ADD_NEW_CAT__') {
-    select.value = '';
-    promptAddCategory();
-  } else {
-    renderSubCategoryDropdown(select.value);
-  }
-};
-
-window.handleSubCategoryChange = function(select) {
-  const parentCat = document.getElementById('prod-cat').value;
-  if (select.value === '__ADD_NEW_SUBCAT__') {
-    select.value = '';
-    if (!parentCat) {
-      alert('Please select a Main Category first.');
-      return;
-    }
-    promptAddSubCategory(parentCat);
-  }
+  renderSubCategoryDropdown(select.value);
 };
 
 window.handleRoomChange = function(select) {
-  if (select.value === '__ADD_NEW_ROOM__') {
-    select.value = '';
-    promptAddRoom();
-  } else {
-    renderSpotDropdown(select.value);
-  }
+  renderSpotDropdown(select.value);
 };
 
-window.handleSpotChange = function(select) {
-  const parentRoom = document.getElementById('prod-room').value;
-  if (select.value === '__ADD_NEW_SPOT__') {
-    select.value = '';
-    if (!parentRoom) {
-      alert('Please select a Main Room first.');
-      return;
-    }
-    promptAddSpot(parentRoom);
-  }
-};
-
-// CATEGORY AND LOCATION MANAGERS
+// CATEGORY & LOCATION MANAGERS (WITH INLINE ADDERS)
 function renderCategoryManager() {
   const container = document.getElementById('category-manager-list');
   if (!container) return;
 
-  if (categoriesData.length === 0) {
-    container.innerHTML = `<div class="empty-msg">No categories available.</div>`;
-    return;
-  }
+  let html = `
+    <div style="margin-bottom:15px; display:flex; gap:8px;">
+      <input type="text" id="new-cat-input" placeholder="New Category Name..." style="flex:1; padding:8px; border:1px solid #ccc; border-radius:6px;">
+      <button type="button" class="btn-primary" onclick="addCategoryFromInput()" style="padding:8px 14px; background:#1d64d8; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">+ Add Category</button>
+    </div>
+  `;
 
-  container.innerHTML = categoriesData.map((cat) => `
-    <div class="cat-card">
-      <div class="cat-card-header">
-        <span class="cat-card-title">${escapeHtml(cat.name)}</span>
-        <div class="cat-card-actions">
-          <button class="btn-icon btn-add-sub" onclick="promptAddSubCategory('${escapeHtml(cat.name)}')" title="Add Sub-Category">+</button>
-          <button class="btn-icon btn-del-cat" onclick="deleteCategory('${cat.id}')" title="Delete Category">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+  if (categoriesData.length === 0) {
+    html += `<div class="empty-msg">No categories available.</div>`;
+  } else {
+    html += categoriesData.map((cat) => `
+      <div class="cat-card" style="background:#f8fafc; border:1px solid #e2e8f0; padding:12px; border-radius:8px; margin-bottom:12px;">
+        <div class="cat-card-header" style="display:flex; justify-content:space-between; align-items:center; font-weight:bold; margin-bottom:8px;">
+          <span class="cat-card-title">${escapeHtml(cat.name)}</span>
+          <button class="btn-icon btn-del-cat" onclick="deleteCategory('${cat.id}')" title="Delete Category" style="background:none; border:none; color:#dc2626; cursor:pointer;">
+            &times; Delete
           </button>
         </div>
-      </div>
-      <div class="cat-card-body">
-        <div class="sub-pill-list">
-          ${(cat.subs || []).map((sub, subIdx) => `
-            <span class="sub-pill">
-              ${escapeHtml(sub)}
-              <button class="pill-remove" onclick="deleteSubCategory('${cat.id}',${subIdx})">&times;</button>
-            </span>
-          `).join('')}
+        <div class="cat-card-body">
+          <div class="sub-pill-list" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;">
+            ${(cat.subs || []).map((sub, subIdx) => `
+              <span class="sub-pill" style="background:#e2e8f0; padding:4px 8px; border-radius:12px; font-size:12px; display:inline-flex; align-items:center; gap:4px;">
+                ${escapeHtml(sub)}
+                <button class="pill-remove" onclick="deleteSubCategory('${cat.id}',${subIdx})" style="background:none; border:none; cursor:pointer;">&times;</button>
+              </span>
+            `).join('')}
+          </div>
+          <div style="display:flex; gap:6px; margin-top:8px;">
+            <input type="text" id="new-sub-input-${cat.id}" placeholder="New Sub-Category..." style="flex:1; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
+            <button type="button" onclick="addSubCategoryFromInput('${cat.id}')" style="padding:6px 10px; background:#059669; color:#fff; border:none; border-radius:4px; font-size:12px; font-weight:bold; cursor:pointer;">+ Add Sub</button>
+          </div>
         </div>
       </div>
-    </div>
-  `).join('');
+    `).join('');
+  }
+
+  container.innerHTML = html;
 }
 
 function renderLocationManager() {
   const container = document.getElementById('location-manager-list');
   if (!container) return;
 
-  if (locationsData.length === 0) {
-    container.innerHTML = `<div class="empty-msg">No locations available.</div>`;
-    return;
-  }
+  let html = `
+    <div style="margin-bottom:15px; display:flex; gap:8px;">
+      <input type="text" id="new-room-input" placeholder="New Room Name..." style="flex:1; padding:8px; border:1px solid #ccc; border-radius:6px;">
+      <button type="button" class="btn-primary" onclick="addRoomFromInput()" style="padding:8px 14px; background:#1d64d8; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">+ Add Room</button>
+    </div>
+  `;
 
-  container.innerHTML = locationsData.map((loc) => `
-    <div class="cat-card">
-      <div class="cat-card-header">
-        <span class="cat-card-title">${escapeHtml(loc.name)}</span>
-        <div class="cat-card-actions">
-          <button class="btn-icon btn-add-sub" onclick="promptAddSpot('${escapeHtml(loc.name)}')" title="Add Storage Spot">+</button>
-          <button class="btn-icon btn-del-cat" onclick="deleteRoom('${loc.id}')" title="Delete Room">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+  if (locationsData.length === 0) {
+    html += `<div class="empty-msg">No locations available.</div>`;
+  } else {
+    html += locationsData.map((loc) => `
+      <div class="cat-card" style="background:#f8fafc; border:1px solid #e2e8f0; padding:12px; border-radius:8px; margin-bottom:12px;">
+        <div class="cat-card-header" style="display:flex; justify-content:space-between; align-items:center; font-weight:bold; margin-bottom:8px;">
+          <span class="cat-card-title">${escapeHtml(loc.name)}</span>
+          <button class="btn-icon btn-del-cat" onclick="deleteRoom('${loc.id}')" title="Delete Room" style="background:none; border:none; color:#dc2626; cursor:pointer;">
+            &times; Delete
           </button>
         </div>
-      </div>
-      <div class="cat-card-body">
-        <div class="sub-pill-list">
-          ${(loc.spots || []).map((spot, spotIdx) => `
-            <span class="sub-pill">
-              ${escapeHtml(spot)}
-              <button class="pill-remove" onclick="deleteSpot('${loc.id}',${spotIdx})">&times;</button>
-            </span>
-          `).join('')}
+        <div class="cat-card-body">
+          <div class="sub-pill-list" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;">
+            ${(loc.spots || []).map((spot, spotIdx) => `
+              <span class="sub-pill" style="background:#e2e8f0; padding:4px 8px; border-radius:12px; font-size:12px; display:inline-flex; align-items:center; gap:4px;">
+                ${escapeHtml(spot)}
+                <button class="pill-remove" onclick="deleteSpot('${loc.id}',${spotIdx})" style="background:none; border:none; cursor:pointer;">&times;</button>
+              </span>
+            `).join('')}
+          </div>
+          <div style="display:flex; gap:6px; margin-top:8px;">
+            <input type="text" id="new-spot-input-${loc.id}" placeholder="New Storage Spot..." style="flex:1; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
+            <button type="button" onclick="addSpotFromInput('${loc.id}')" style="padding:6px 10px; background:#059669; color:#fff; border:none; border-radius:4px; font-size:12px; font-weight:bold; cursor:pointer;">+ Add Spot</button>
+          </div>
         </div>
       </div>
-    </div>
-  `).join('');
+    `).join('');
+  }
+
+  container.innerHTML = html;
 }
 
-// PROMPT ACTIONS (FIRESTORE MUTATIONS)
-window.promptAddCategory = async function() {
-  const name = prompt('Enter new Category Name:');
-  if (name && name.trim()) {
-    const trimmed = name.trim();
-    if (!categoriesData.some(c => c.name.toLowerCase() === trimmed.toLowerCase())) {
-      await addDoc(collection(db, "categories"), { name: trimmed, subs: [], householdId: HOUSEHOLD_ID });
+// INLINE ADD MUTATIONS
+window.addCategoryFromInput = async function() {
+  const input = document.getElementById('new-cat-input');
+  if (!input) return;
+  const val = input.value.trim();
+  if (val) {
+    if (!categoriesData.some(c => c.name.toLowerCase() === val.toLowerCase())) {
+      await addDoc(collection(db, "categories"), { name: val, subs: [], householdId: HOUSEHOLD_ID });
       showToast('Category added!');
     }
   }
 };
 
-window.promptAddSubCategory = async function(catName) {
-  const name = prompt(`Enter new Sub-Category for "${catName}":`);
-  if (name && name.trim()) {
-    const trimmed = name.trim();
-    const cat = categoriesData.find(c => c.name === catName);
+window.addSubCategoryFromInput = async function(catId) {
+  const input = document.getElementById(`new-sub-input-${catId}`);
+  if (!input) return;
+  const val = input.value.trim();
+  if (val) {
+    const cat = categoriesData.find(c => c.id === catId);
     if (cat) {
       const updatedSubs = cat.subs ? [...cat.subs] : [];
-      if (!updatedSubs.some(s => s.toLowerCase() === trimmed.toLowerCase())) {
-        updatedSubs.push(trimmed);
-        await updateDoc(doc(db, "categories", cat.id), { subs: updatedSubs });
+      if (!updatedSubs.some(s => s.toLowerCase() === val.toLowerCase())) {
+        updatedSubs.push(val);
+        await updateDoc(doc(db, "categories", catId), { subs: updatedSubs });
         showToast('Sub-category added!');
       }
     }
   }
 };
 
-window.promptAddRoom = async function() {
-  const name = prompt('Enter new Room Name:');
-  if (name && name.trim()) {
-    const trimmed = name.trim();
-    if (!locationsData.some(l => l.name.toLowerCase() === trimmed.toLowerCase())) {
-      await addDoc(collection(db, "locations"), { name: trimmed, spots: [], householdId: HOUSEHOLD_ID });
+window.addRoomFromInput = async function() {
+  const input = document.getElementById('new-room-input');
+  if (!input) return;
+  const val = input.value.trim();
+  if (val) {
+    if (!locationsData.some(l => l.name.toLowerCase() === val.toLowerCase())) {
+      await addDoc(collection(db, "locations"), { name: val, spots: [], householdId: HOUSEHOLD_ID });
       showToast('Room added!');
     }
   }
 };
 
-window.promptAddSpot = async function(roomName) {
-  const name = prompt(`Enter new Storage Spot for "${roomName}":`);
-  if (name && name.trim()) {
-    const trimmed = name.trim();
-    const loc = locationsData.find(l => l.name === roomName);
+window.addSpotFromInput = async function(locId) {
+  const input = document.getElementById(`new-spot-input-${locId}`);
+  if (!input) return;
+  const val = input.value.trim();
+  if (val) {
+    const loc = locationsData.find(l => l.id === locId);
     if (loc) {
       const updatedSpots = loc.spots ? [...loc.spots] : [];
-      if (!updatedSpots.some(s => s.toLowerCase() === trimmed.toLowerCase())) {
-        updatedSpots.push(trimmed);
-        await updateDoc(doc(db, "locations", loc.id), { spots: updatedSpots });
+      if (!updatedSpots.some(s => s.toLowerCase() === val.toLowerCase())) {
+        updatedSpots.push(val);
+        await updateDoc(doc(db, "locations", locId), { spots: updatedSpots });
         showToast('Storage spot added!');
       }
     }
   }
 };
 
+// DELETE MUTATIONS
 window.deleteCategory = async function(catId) {
   if (confirm('Delete this main category and all its sub-categories?')) {
     await deleteDoc(doc(db, "categories", catId));
@@ -614,11 +612,7 @@ window.switchTab = function(tabId) {
   const targetTab = document.getElementById(`tab-${tabId}`);
   if (targetTab) targetTab.style.display = 'block';
 
-  const navBtns = document.querySelectorAll('.nav-tab');
-  const tabsOrder = ['dashboard', 'inventory', 'add', 'categories', 'locations', 'shopping', 'settings'];
-  const idx = tabsOrder.indexOf(tabId);
-  if (idx > -1 && navBtns[idx]) navBtns[idx].classList.add('active');
-
+  if (tabId === 'settings') renderSettingsTab();
   if (tabId === 'shopping') renderShoppingList();
 };
 
