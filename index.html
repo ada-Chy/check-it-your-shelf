@@ -3,216 +3,250 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Check It YourShelf</title>
+  <title>Home Inventory</title>
   <link rel="stylesheet" href="style.css">
+  
+  <!-- Firebase Modular SDK via CDN -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { 
+      getFirestore, doc, onSnapshot, setDoc 
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    // ^^ REPLACE THE OBJECT BELOW WITH YOUR FIREBASE PROJECT CONFIG FROM STEP 4 ^^
+    const firebaseConfig = {
+      apiKey: "AIzaSyD9-RXk_3Lu-WIcQX3bYszqdAW0KbLqWO0",
+      authDomain: "check-it-yourshelf.firebaseapp.com",
+      databaseURL: "https://check-it-yourshelf-default-rtdb.firebaseio.com",
+      projectId: "check-it-yourshelf",
+      storageBucket: "check-it-yourshelf.firebasestorage.app",
+      messagingSenderId: "233293179677",
+      appId: "1:233293179677:web:3d75068654065ee8938ff4"
+    };
+    // ^^ END OF FIREBASE CONFIG CONFIGURATION ^^
+
+    // Initialize Firebase
+    try {
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+
+      // Expose Firestore instances globally for app.js
+      window.db = db;
+      window.firestoreDoc = doc;
+      window.firestoreOnSnapshot = onSnapshot;
+      window.firestoreSetDoc = setDoc;
+    } catch (e) {
+      console.error("Firebase initialization failed:", e);
+    }
+  </script>
 </head>
 <body>
-  <div class="app">
+
+  <!-- Top Sticky Navigation Bar -->
+  <header class="top-bar">
+    <div class="nav-container">
+      <nav class="nav-tabs">
+        <button class="tab-btn active" onclick="switchTab('dashboard')">Dashboard</button>
+        <button class="tab-btn" onclick="switchTab('inventory')">Inventory</button>
+        <button class="tab-btn" onclick="switchTab('add-product')">Add Product</button>
+        <button class="tab-btn" onclick="switchTab('categories')">Categories</button>
+        <button class="tab-btn" onclick="switchTab('locations')">Locations</button>
+        <button class="tab-btn" onclick="switchTab('reorder')">Reorder List</button>
+        <button class="tab-btn" onclick="switchTab('settings')">Settings</button>
+      </nav>
+      <button id="lang-toggle-btn" class="lang-btn" onclick="toggleLanguage()">繁體中文</button>
+    </div>
+  </header>
+
+  <main class="main-content">
     
-    <!-- App Header -->
-    <header>
-      <div>
-        <h1>Check It YourShelf</h1>
-        <div class="subtitle">Smart Household & Skincare Tracker</div>
-      </div>
-      <button class="lang-btn" onclick="toggleLanguage()">繁體中文</button>
-    </header>
-
-    <!-- Navigation Bar -->
-    <nav class="main-nav-bar">
-      <button class="nav-tab active" onclick="switchTab('dashboard')">Dashboard</button>
-      <button class="nav-tab" onclick="switchTab('inventory')">Inventory</button>
-      <button class="nav-tab" onclick="switchTab('add')">+ Add</button>
-      <button class="nav-tab" onclick="switchTab('categories')">Categories</button>
-      <button class="nav-tab" onclick="switchTab('locations')">Locations</button>
-      <button class="nav-tab" onclick="switchTab('shopping')">Shopping</button>
-      <button class="nav-tab" onclick="switchTab('settings')">Settings</button>
-    </nav>
-
-    <!-- Datalists for Auto-Prediction (Case-Insensitive History Suggestions) -->
-    <datalist id="prod-name-list"></datalist>
-    <datalist id="prod-brand-list"></datalist>
-    <datalist id="prod-size-list"></datalist>
-
-    <!-- TAB 1: DASHBOARD -->
-    <section id="tab-dashboard" class="tab-content">
-      <div class="dashboard-grid">
-        <div class="dash-card" onclick="switchTab('inventory')">
-          <div class="dash-num" id="dash-total">0</div>
-          <div class="dash-label">Total Items</div>
+    <!-- 1. Dashboard View -->
+    <section id="view-dashboard" class="view-section active">
+      <h2 id="txt-dash-title">Inventory Overview</h2>
+      <div class="metrics-grid">
+        <div class="metric-card" onclick="filterAndNavigate('all')">
+          <span class="metric-num" id="metric-total">0</span>
+          <span class="metric-label" id="txt-m-total">Total Items</span>
         </div>
-        <div class="dash-card dash-warning" onclick="filterInventory('low-stock')">
-          <div class="dash-num" id="dash-low">0</div>
-          <div class="dash-label">Low Stock (&le;1)</div>
+        <div class="metric-card warning" onclick="filterAndNavigate('low')">
+          <span class="metric-num" id="metric-low">0</span>
+          <span class="metric-label" id="txt-m-low">Low Stock (≤1)</span>
         </div>
-        <div class="dash-card dash-warning" onclick="filterInventory('expiring')">
-          <div class="dash-num" id="dash-expiring">0</div>
-          <div class="dash-label">Expiring Soon</div>
+        <div class="metric-card alert" onclick="filterAndNavigate('expiring')">
+          <span class="metric-num" id="metric-expiring">0</span>
+          <span class="metric-label" id="txt-m-expiring">Expiring (30 Days)</span>
         </div>
-        <div class="dash-card dash-danger" onclick="filterInventory('expired')">
-          <div class="dash-num" id="dash-expired">0</div>
-          <div class="dash-label">Expired</div>
+        <div class="metric-card danger" onclick="filterAndNavigate('expired')">
+          <span class="metric-num" id="metric-expired">0</span>
+          <span class="metric-label" id="txt-m-expired">Expired</span>
         </div>
       </div>
     </section>
 
-    <!-- TAB 2: INVENTORY LIST -->
-    <section id="tab-inventory" class="tab-content" style="display: none;">
-      <div class="card-section">
-        <div class="search-filter-bar">
-          <input type="text" id="search-input" placeholder="Search product or brand..." oninput="renderInventory()">
+    <!-- 2. Inventory View -->
+    <section id="view-inventory" class="view-section">
+      <div class="filter-controls">
+        <input type="text" id="search-input" placeholder="Search name or brand..." oninput="renderInventory()">
+        <div class="status-tabs">
+          <button class="status-btn active" onclick="setStatusFilter('all', this)" id="txt-st-all">All</button>
+          <button class="status-btn" onclick="setStatusFilter('In Stock', this)" id="txt-st-instock">In Stock</button>
+          <button class="status-btn" onclick="setStatusFilter('In Use', this)" id="txt-st-inuse">In Use</button>
+          <button class="status-btn" onclick="setStatusFilter('Finished', this)" id="txt-st-finished">Finished</button>
         </div>
-        <div class="tabs">
-          <button class="tab-btn active" onclick="setFilter('all', this)">All</button>
-          <button class="tab-btn" onclick="setFilter('In Stock', this)">In Stock</button>
-          <button class="tab-btn" onclick="setFilter('In Use', this)">In Use</button>
-          <button class="tab-btn" onclick="setFilter('Finished', this)">Finished</button>
-        </div>
-        <div id="inventory-list"></div>
       </div>
+      <div id="product-list-container" class="product-grid"></div>
     </section>
 
-    <!-- TAB 3: ADD NEW PRODUCT FORM -->
-    <section id="tab-add" class="tab-content" style="display: none;">
-      <div class="card-section">
-        <h2 id="form-title">Add New Product</h2>
-        <form id="product-form" class="form-grid" onsubmit="handleFormSubmit(event)">
-          <input type="hidden" id="prod-id">
+    <!-- 3. Add/Edit Product View -->
+    <section id="view-add-product" class="view-section">
+      <h2 id="form-title">Add New Product</h2>
+      <form id="product-form" onsubmit="handleFormSubmit(event)">
+        <input type="hidden" id="prod-id">
 
-          <div class="input-group">
-            <label for="prod-name">Product Name *</label>
-            <input type="text" id="prod-name" list="prod-name-list" placeholder="e.g. Advanced Night Repair" required autocomplete="off">
+        <div class="form-group">
+          <label id="lbl-name">Product Name *</label>
+          <input type="text" id="prod-name" required list="dl-name">
+          <datalist id="dl-name"></datalist>
+        </div>
+
+        <div class="form-group">
+          <label id="lbl-brand">Brand / Maker</label>
+          <input type="text" id="prod-brand" list="dl-brand">
+          <datalist id="dl-brand"></datalist>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label id="lbl-cat">Category *</label>
+            <select id="prod-cat" required onchange="handleCategoryChange()"></select>
           </div>
-
-          <div class="input-group">
-            <label for="prod-brand">Brand / Maker</label>
-            <input type="text" id="prod-brand" list="prod-brand-list" placeholder="e.g. Estée Lauder" autocomplete="off">
+          <div class="form-group">
+            <label id="lbl-subcat">Sub-Category</label>
+            <select id="prod-subcat" onchange="handleSubCategoryChange()"></select>
           </div>
+        </div>
 
-          <div class="form-row">
-            <div class="input-group">
-              <label for="prod-cat">Category *</label>
-              <select id="prod-cat" required onchange="handleCategoryChange(this)"></select>
-            </div>
-            <div class="input-group">
-              <label for="prod-subcat">Sub-Category</label>
-              <select id="prod-subcat" onchange="handleSubCategoryChange(this)"></select>
-            </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label id="lbl-room">Room *</label>
+            <select id="prod-room" required onchange="handleRoomChange()"></select>
           </div>
-
-          <div class="form-row">
-            <div class="input-group">
-              <label for="prod-room">Main Room *</label>
-              <select id="prod-room" required onchange="handleRoomChange(this)"></select>
-            </div>
-            <div class="input-group">
-              <label for="prod-spot">Storage Spot</label>
-              <select id="prod-spot" onchange="handleSpotChange(this)"></select>
-            </div>
+          <div class="form-group">
+            <label id="lbl-spot">Storage Spot</label>
+            <select id="prod-spot" onchange="handleSpotChange()"></select>
           </div>
+        </div>
 
-          <div class="form-row">
-            <div class="input-group">
-              <label for="prod-size">Size / Volume</label>
-              <input type="text" id="prod-size" list="prod-size-list" placeholder="e.g. 50ml / 200g" autocomplete="off">
-            </div>
-            <div class="input-group">
-              <label for="prod-price">Purchase Price ($)</label>
-              <input type="number" id="prod-price" step="0.01" placeholder="0.00">
-            </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label id="lbl-size">Size / Volume</label>
+            <input type="text" id="prod-size" list="dl-size" placeholder="e.g. 50ml, 200g">
+            <datalist id="dl-size"></datalist>
           </div>
-
-          <div class="form-row">
-            <div class="input-group">
-              <label for="prod-qty">Quantity</label>
-              <input type="number" id="prod-qty" value="1" min="0">
-            </div>
-            <div class="input-group">
-              <label for="prod-status">Status</label>
-              <select id="prod-status">
-                <option value="In Stock">In Stock</option>
-                <option value="In Use">In Use</option>
-                <option value="Finished">Finished</option>
-              </select>
-            </div>
+          <div class="form-group">
+            <label id="lbl-price">Price ($)</label>
+            <input type="number" id="prod-price" step="0.01" min="0">
           </div>
+        </div>
 
-          <div class="form-row">
-            <div class="input-group">
-              <label for="prod-opened">Date Opened</label>
-              <input type="date" id="prod-opened">
-            </div>
-            <div class="input-group">
-              <label for="prod-pao">Period After Opening (Months)</label>
-              <input type="number" id="prod-pao" placeholder="e.g. 6 or 12">
-            </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label id="lbl-qty">Quantity</label>
+            <input type="number" id="prod-qty" value="1" min="0">
           </div>
-
-          <div class="input-group">
-            <label for="prod-exp">Expiration Date</label>
-            <input type="date" id="prod-exp">
+          <div class="form-group">
+            <label id="lbl-status">Status</label>
+            <select id="prod-status">
+              <option value="In Stock">In Stock</option>
+              <option value="In Use">In Use</option>
+              <option value="Finished">Finished</option>
+            </select>
           </div>
+        </div>
 
-          <div class="input-group">
-            <label for="prod-repurch">Worth Repurchasing?</label>
-            <select id="prod-repurch">
-              <option value="">-- Select --</option>
-              <option value="Yes">Yes</option>
+        <div class="form-row">
+          <div class="form-group">
+            <label id="lbl-opened">Date Opened</label>
+            <input type="date" id="prod-opened">
+          </div>
+          <div class="form-group">
+            <label id="lbl-pao">PAO (Months)</label>
+            <input type="number" id="prod-pao" min="0" placeholder="e.g. 6, 12">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label id="lbl-expiry">Expiration Date</label>
+            <input type="date" id="prod-expiry">
+          </div>
+          <div class="form-group">
+            <label id="lbl-repurchase">Worth Repurchasing?</label>
+            <select id="prod-repurchase">
               <option value="Maybe">Maybe</option>
+              <option value="Yes">Yes</option>
               <option value="No">No</option>
             </select>
           </div>
+        </div>
 
-          <div class="form-actions">
-            <button type="submit" class="btn-primary" id="save-btn">Save Product</button>
-            <button type="button" class="btn-secondary" onclick="resetForm()">Cancel</button>
-          </div>
-        </form>
-      </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-primary" id="btn-save">Save Product</button>
+          <button type="button" class="btn-secondary" onclick="resetForm()" id="btn-cancel">Cancel</button>
+        </div>
+      </form>
     </section>
 
-    <!-- TAB 4: CATEGORY MANAGER -->
-    <section id="tab-categories" class="tab-content" style="display: none;">
-      <div class="card-section">
-        <h2>Category Manager</h2>
-        <button class="btn-primary" style="width: 100%; margin-bottom: 14px;" onclick="promptAddCategory()">+ Add Category</button>
-        <div id="category-manager-list"></div>
+    <!-- 4. Categories View -->
+    <section id="view-categories" class="view-section">
+      <div class="section-header">
+        <h2 id="txt-cat-mgr">Category Management</h2>
+        <button class="btn-primary" onclick="promptAddCategory()" id="btn-add-cat">+ New Category</button>
       </div>
+      <div id="category-list-container" class="management-grid"></div>
     </section>
 
-    <!-- TAB 5: LOCATION MANAGER -->
-    <section id="tab-locations" class="tab-content" style="display: none;">
-      <div class="card-section">
-        <h2>Location Manager</h2>
-        <button class="btn-primary" style="width: 100%; margin-bottom: 14px;" onclick="promptAddRoom()">+ Add Room</button>
-        <div id="location-manager-list"></div>
+    <!-- 5. Locations View -->
+    <section id="view-locations" class="view-section">
+      <div class="section-header">
+        <h2 id="txt-loc-mgr">Location Management</h2>
+        <button class="btn-primary" onclick="promptAddRoom()" id="btn-add-room">+ New Room</button>
       </div>
+      <div id="location-list-container" class="management-grid"></div>
     </section>
 
-    <!-- TAB 6: SHOPPING LIST -->
-    <section id="tab-shopping" class="tab-content" style="display: none;">
-      <div class="card-section">
-        <h2>Shopping / Reorder List</h2>
-        <div id="shopping-list"></div>
-      </div>
+    <!-- 6. Reorder List View -->
+    <section id="view-reorder" class="view-section">
+      <h2 id="txt-reorder-title">Automated Shopping / Reorder List</h2>
+      <div id="reorder-list-container" class="reorder-grid"></div>
     </section>
 
-    <!-- TAB 7: SETTINGS -->
-    <section id="tab-settings" class="tab-content" style="display: none;">
-      <div class="card-section">
-        <h2>Settings</h2>
-        <div class="form-grid">
-          <button class="btn-secondary" onclick="exportData()">Export Data (JSON)</button>
-          <button class="btn-secondary" onclick="document.getElementById('import-file').click()">Import Data (JSON)</button>
-          <input type="file" id="import-file" style="display: none;" accept=".json" onchange="importData(event)">
-          <button class="btn-secondary" style="background: #fee2e2; color: #ef4444; border-color: #fca5a5;" onclick="clearAllData()">Reset All Data</button>
+    <!-- 7. Settings View -->
+    <section id="view-settings" class="view-section">
+      <h2 id="txt-settings-title">Data Backup & Settings</h2>
+      <div class="settings-card">
+        <h3 id="txt-backup-head">Data Backup & Restore</h3>
+        <p id="txt-backup-sub">Export your database as a local JSON file or restore from a backup.</p>
+        <div class="settings-actions">
+          <button class="btn-primary" onclick="exportJSON()" id="btn-export">Export JSON Backup</button>
+          <label class="btn-secondary custom-file-upload">
+            <input type="file" id="import-file" accept=".json" onchange="importJSON(event)">
+            <span id="btn-import">Import JSON Backup</span>
+          </label>
         </div>
       </div>
+      <div class="settings-card danger-zone">
+        <h3 id="txt-reset-head">Clear All Data</h3>
+        <p id="txt-reset-sub">Wipe all local inventory, categories, and locations completely.</p>
+        <button class="btn-danger" onclick="resetAllData()" id="btn-reset">Reset Database</button>
+      </div>
     </section>
 
-  </div>
+  </main>
 
-  <div id="toast" class="toast" style="display: none;"></div>
+  <!-- Toast Container -->
+  <div id="toast" class="toast"></div>
+
   <script src="app.js"></script>
 </body>
 </html>
