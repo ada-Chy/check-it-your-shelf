@@ -1,669 +1,668 @@
-/* ==========================================================================
-   State & Local Storage Initialization
-   ========================================================================== */
-let products = JSON.parse(localStorage.getItem('products')) || [];
-let categories = JSON.parse(localStorage.getItem('categories')) || [
-  { id: 'c1', name: 'Skincare', subcategories: ['Cleanser', 'Moisturizer', 'Sunscreen'] },
-  { id: 'c2', name: 'Supplements', subcategories: ['Vitamins', 'Protein'] }
-];
-let rooms = JSON.parse(localStorage.getItem('rooms')) || [
-  { id: 'r1', name: 'Bathroom', spots: ['Cabinet', 'Counter'] },
-  { id: 'r2', name: 'Bedroom', spots: ['Vanity', 'Closet'] }
+// INITIAL DEFAULT DATA
+const DEFAULT_CATEGORIES = [
+  { name: 'Skincare', subs: ['Cleansing', 'Toner & Essence', 'Serums & Ampoules', 'Eye Cream', 'Moisturizer', 'Sunscreen', 'Masks'] },
+  { name: 'Cosmetics & Makeup', subs: ['Face Base', 'Eye Makeup', 'Lips', 'Blush & Contour'] },
+  { name: 'Personal Care & Hair', subs: ['Hair Care', 'Body Wash & Lotion', 'Oral Hygiene', 'Deodorant & Perfume'] },
+  { name: 'Household & Cleaning', subs: ['Laundry', 'Dish & Surface', 'Paper & Disposables', 'Trash Bags'] },
+  { name: 'Health & First Aid', subs: ['Vitamins & Supplements', 'Medicine & Ointment', 'Plasters & Bandages'] }
 ];
 
-let currentLang = localStorage.getItem('appLang') || 'en';
-let activeStatusFilter = 'all';
-const HOUSEHOLD_DOC_ID = "main_household_data"; // Fixed Firestore document ID for shared household sync
+const DEFAULT_LOCATIONS = [
+  { name: 'Toilet / Bathroom', spots: ['Under Sink Cabinet', 'Mirror Cabinet', 'Shower Shelf'] },
+  { name: 'Bedroom', spots: ['Vanity Table', 'Drawer #1', 'Wardrobe'] },
+  { name: 'Kitchen', spots: ['Pantry', 'Cabinet Above Sink', 'Fridge'] }
+];
 
-/* ==========================================================================
-   Firebase Firestore Cloud Syncing
-   ========================================================================== */
+let activeFilterStatus = 'all';
 
-// Real-Time Cloud Listener (Receives changes from iPhone, iPad, MacBook instantly)
-function listenToCloudChanges() {
-  if (!window.db) {
-    setTimeout(listenToCloudChanges, 500); // Retry until Firebase loads
-    return;
-  }
-
-  const docRef = window.firestoreDoc(window.db, "inventories", HOUSEHOLD_DOC_ID);
-
-  window.firestoreOnSnapshot(docRef, (docSnap) => {
-    if (docSnap.exists()) {
-      const cloudData = docSnap.data();
-
-      // Synchronize cloud data to memory
-      products = cloudData.products || [];
-      categories = cloudData.categories || [];
-      rooms = cloudData.rooms || [];
-
-      // Save local offline backups
-      saveToLocal();
-
-      // Refresh current UI view
-      renderAllViews();
-    }
-  }, (error) => {
-    console.error("Firestore Listen Error:", error);
-  });
-}
-
-// Push local modifications up to Firestore
-async function saveToCloud() {
-  saveToLocal();
-
-  if (!window.db) return;
-
-  try {
-    const docRef = window.firestoreDoc(window.db, "inventories", HOUSEHOLD_DOC_ID);
-    await window.firestoreSetDoc(docRef, {
-      products: products,
-      categories: categories,
-      rooms: rooms,
-      lastUpdated: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error("Cloud push failed:", error);
-  }
-}
-
-// Save backup to browser LocalStorage
-function saveToLocal() {
-  localStorage.setItem('products', JSON.stringify(products));
-  localStorage.setItem('categories', JSON.stringify(categories));
-  localStorage.setItem('rooms', JSON.stringify(rooms));
-}
-
-/* ==========================================================================
-   Navigation & UI State Handlers
-   ========================================================================== */
-function switchTab(tabId) {
-  document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-
-  const targetView = document.getElementById(`view-${tabId}`);
-  if (targetView) targetView.classList.add('active');
-
-  const navButtons = document.querySelectorAll('.tab-btn');
-  const tabs = ['dashboard', 'inventory', 'add-product', 'categories', 'locations', 'reorder', 'settings'];
-  const index = tabs.indexOf(tabId);
-  if (index !== -1 && navButtons[index]) navButtons[index].classList.add('active');
-
-  renderAllViews();
-}
-
-function filterAndNavigate(filterType) {
-  switchTab('inventory');
-  const searchInput = document.getElementById('search-input');
-  if (searchInput) searchInput.value = '';
-
-  if (filterType === 'all') setStatusFilter('all');
-  else setStatusFilter(filterType);
-}
-
-function setStatusFilter(status, element) {
-  activeStatusFilter = status;
-  if (element) {
-    document.querySelectorAll('.status-btn').forEach(b => b.classList.remove('active'));
-    element.classList.add('active');
-  }
-  renderInventory();
-}
-
-function renderAllViews() {
+// APPLICATION INITIALIZATION
+document.addEventListener('DOMContentLoaded', () => {
+  initStorage();
+  updateDatalists();
+  renderAllDropdowns();
   renderDashboard();
   renderInventory();
   renderCategoryManager();
   renderLocationManager();
-  renderReorderList();
-  populateDropdowns();
-  updateDatalists();
-}
+});
 
-/* ==========================================================================
-   Dashboard Metrics
-   ========================================================================== */
-function renderDashboard() {
-  const total = products.length;
-  const low = products.filter(p => Number(p.quantity) <= 1).length;
-
-  const now = new Date();
-  const thirtyDaysLater = new Date();
-  thirtyDaysLater.setDate(now.getDate() + 30);
-
-  let expiring = 0;
-  let expired = 0;
-
-  products.forEach(p => {
-    if (p.expiryDate) {
-      const exp = new Date(p.expiryDate);
-      if (exp < now) expired++;
-      else if (exp <= thirtyDaysLater) expiring++;
-    }
-  });
-
-  document.getElementById('metric-total').textContent = total;
-  document.getElementById('metric-low').textContent = low;
-  document.getElementById('metric-expiring').textContent = expiring;
-  document.getElementById('metric-expired').textContent = expired;
-}
-
-/* ==========================================================================
-   Inventory List & Product Cards
-   ========================================================================== */
-function renderInventory() {
-  const container = document.getElementById('product-list-container');
-  if (!container) return;
-
-  const searchTerm = (document.getElementById('search-input')?.value || '').toLowerCase();
-  const now = new Date();
-  const thirtyDaysLater = new Date();
-  thirtyDaysLater.setDate(now.getDate() + 30);
-
-  const filtered = products.filter(p => {
-    const matchesSearch = (p.name || '').toLowerCase().includes(searchTerm) || 
-                          (p.brand || '').toLowerCase().includes(searchTerm);
-    
-    let matchesStatus = true;
-    if (activeStatusFilter === 'low') matchesStatus = Number(p.quantity) <= 1;
-    else if (activeStatusFilter === 'expiring') {
-      if (!p.expiryDate) matchesStatus = false;
-      else {
-        const exp = new Date(p.expiryDate);
-        matchesStatus = exp >= now && exp <= thirtyDaysLater;
-      }
-    } else if (activeStatusFilter === 'expired') {
-      if (!p.expiryDate) matchesStatus = false;
-      else matchesStatus = new Date(p.expiryDate) < now;
-    } else if (activeStatusFilter !== 'all') {
-      matchesStatus = p.status === activeStatusFilter;
-    }
-
-    return matchesSearch && matchesStatus;
-  });
-
-  container.innerHTML = filtered.map(p => {
-    const isLow = Number(p.quantity) <= 1;
-    const catObj = categories.find(c => c.id === p.categoryId);
-    const roomObj = rooms.find(r => r.id === p.roomId);
-
-    return `
-      <div class="product-card ${isLow ? 'low-stock-border' : ''}">
-        <div class="card-header">
-          <h3>${escapeHtml(p.name)}</h3>
-          <span class="status-pill status-${(p.status || 'instock').toLowerCase().replace(' ', '')}">${escapeHtml(p.status)}</span>
-        </div>
-        <p class="card-sub">${escapeHtml(p.brand || 'No Brand')} ${p.size ? '• ' + escapeHtml(p.size) : ''}</p>
-        <div class="card-details">
-          <p><strong>Category:</strong> ${escapeHtml(catObj ? catObj.name : 'Unassigned')} ${p.subCategory ? '(' + escapeHtml(p.subCategory) + ')' : ''}</p>
-          <p><strong>Location:</strong> ${escapeHtml(roomObj ? roomObj.name : 'Unassigned')} ${p.spot ? '(' + escapeHtml(p.spot) + ')' : ''}</p>
-          <p><strong>Price:</strong> $${p.price ? Number(p.price).toFixed(2) : '0.00'}</p>
-          <p><strong>Expires:</strong> ${p.expiryDate || 'N/A'}</p>
-        </div>
-        <div class="card-actions">
-          <div class="qty-adjuster">
-            <button onclick="adjustQty('${p.id}', -1)">−</button>
-            <span>${p.quantity}</span>
-            <button onclick="adjustQty('${p.id}', 1)">+</button>
-          </div>
-          <div>
-            <button class="btn-sm" onclick="editProduct('${p.id}')">Edit</button>
-            <button class="btn-sm btn-danger" onclick="deleteProduct('${p.id}')">Delete</button>
-          </div>
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-function adjustQty(id, delta) {
-  const prod = products.find(p => p.id === id);
-  if (prod) {
-    prod.quantity = Math.max(0, Number(prod.quantity) + delta);
-    saveToCloud(); // Auto push to Firebase
+function initStorage() {
+  if (!localStorage.getItem('categories')) {
+    localStorage.setItem('categories', JSON.stringify(DEFAULT_CATEGORIES));
+  }
+  if (!localStorage.getItem('locations')) {
+    localStorage.setItem('locations', JSON.stringify(DEFAULT_LOCATIONS));
+  }
+  if (!localStorage.getItem('products')) {
+    localStorage.setItem('products', JSON.stringify([]));
   }
 }
 
-/* ==========================================================================
-   Product Form Management
-   ========================================================================== */
-function handleFormSubmit(event) {
-  event.preventDefault();
+// HELPER: LOCAL STORAGE + FIRESTORE SYNC WRAPPER
+function saveAndSync(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+  if (typeof window.syncToFirestore === 'function') {
+    window.syncToFirestore();
+  }
+}
 
-  const id = document.getElementById('prod-id').value;
+// FIRESTORE REAL-TIME CALLBACKS TO REFRESH UI
+window.loadAllData = function() {
+  initStorage();
+};
+
+window.renderAll = function() {
+  updateDatalists();
+  renderAllDropdowns();
+  renderDashboard();
+  renderInventory();
+  renderCategoryManager();
+  renderLocationManager();
+  renderShoppingList();
+};
+
+// 1. AUTO-PREDICTION DATALIST POPULATION
+function updateDatalists() {
+  const products = JSON.parse(localStorage.getItem('products') || '[]');
+  
+  const names = [...new Set(products.map(p => p.name).filter(Boolean))];
+  const brands = [...new Set(products.map(p => p.brand).filter(Boolean))];
+  const sizes = [...new Set(products.map(p => p.size).filter(Boolean))];
+
+  populateDatalist('prod-name-list', names);
+  populateDatalist('prod-brand-list', brands);
+  populateDatalist('prod-size-list', sizes);
+}
+
+function populateDatalist(elementId, items) {
+  const listElement = document.getElementById(elementId);
+  if (!listElement) return;
+  listElement.innerHTML = items
+    .map(item => `<option value="${escapeHtml(item)}">`)
+    .join('');
+}
+
+// 2. DROPDOWNS & INLINE +ADD NEW LOGIC
+function renderAllDropdowns() {
+  renderCategoryDropdown();
+  renderRoomDropdown();
+}
+
+function renderCategoryDropdown(selectedCat = '') {
+  const select = document.getElementById('prod-cat');
+  if (!select) return;
+  const categories = JSON.parse(localStorage.getItem('categories') || '[]');
+  
+  let html = '<option value="">-- Select Category --</option>';
+  categories.forEach(c => {
+    const sel = c.name === selectedCat ? 'selected' : '';
+    html += `<option value="${escapeHtml(c.name)}" ${sel}>${escapeHtml(c.name)}</option>`;
+  });
+  html += `<option value="__ADD_NEW_CAT__" style="font-weight: bold; color: #1d64d8;">+ Add New Category...</option>`;
+  select.innerHTML = html;
+  
+  renderSubCategoryDropdown(selectedCat || select.value);
+}
+
+function renderSubCategoryDropdown(categoryName, selectedSub = '') {
+  const select = document.getElementById('prod-subcat');
+  if (!select) return;
+  const categories = JSON.parse(localStorage.getItem('categories') || '[]');
+  const catObj = categories.find(c => c.name === categoryName);
+  
+  let html = '<option value="">-- Select Sub-Category --</option>';
+  if (catObj && catObj.subs) {
+    catObj.subs.forEach(s => {
+      const sel = s === selectedSub ? 'selected' : '';
+      html += `<option value="${escapeHtml(s)}" ${sel}>${escapeHtml(s)}</option>`;
+    });
+  }
+  html += `<option value="__ADD_NEW_SUBCAT__" style="font-weight: bold; color: #1d64d8;">+ Add New Sub-Category...</option>`;
+  select.innerHTML = html;
+}
+
+function renderRoomDropdown(selectedRoom = '') {
+  const select = document.getElementById('prod-room');
+  if (!select) return;
+  const locations = JSON.parse(localStorage.getItem('locations') || '[]');
+  
+  let html = '<option value="">-- Select Main Room --</option>';
+  locations.forEach(l => {
+    const sel = l.name === selectedRoom ? 'selected' : '';
+    html += `<option value="${escapeHtml(l.name)}" ${sel}>${escapeHtml(l.name)}</option>`;
+  });
+  html += `<option value="__ADD_NEW_ROOM__" style="font-weight: bold; color: #1d64d8;">+ Add New Room...</option>`;
+  select.innerHTML = html;
+  
+  renderSpotDropdown(selectedRoom || select.value);
+}
+
+function renderSpotDropdown(roomName, selectedSpot = '') {
+  const select = document.getElementById('prod-spot');
+  if (!select) return;
+  const locations = JSON.parse(localStorage.getItem('locations') || '[]');
+  const roomObj = locations.find(l => l.name === roomName);
+  
+  let html = '<option value="">-- Select Storage Spot --</option>';
+  if (roomObj && roomObj.spots) {
+    roomObj.spots.forEach(s => {
+      const sel = s === selectedSpot ? 'selected' : '';
+      html += `<option value="${escapeHtml(s)}" ${sel}>${escapeHtml(s)}</option>`;
+    });
+  }
+  html += `<option value="__ADD_NEW_SPOT__" style="font-weight: bold; color: #1d64d8;">+ Add New Storage Spot...</option>`;
+  select.innerHTML = html;
+}
+
+// DROPDOWN CHANGE EVENT HANDLERS
+function handleCategoryChange(select) {
+  if (select.value === '__ADD_NEW_CAT__') {
+    promptAddCategory();
+  } else {
+    renderSubCategoryDropdown(select.value);
+  }
+}
+
+function handleSubCategoryChange(select) {
+  const parentCat = document.getElementById('prod-cat').value;
+  if (select.value === '__ADD_NEW_SUBCAT__') {
+    if (!parentCat || parentCat === '__ADD_NEW_CAT__') {
+      alert('Please select a Main Category first.');
+      select.value = '';
+      return;
+    }
+    promptAddSubCategory(parentCat);
+  }
+}
+
+function handleRoomChange(select) {
+  if (select.value === '__ADD_NEW_ROOM__') {
+    promptAddRoom();
+  } else {
+    renderSpotDropdown(select.value);
+  }
+}
+
+function handleSpotChange(select) {
+  const parentRoom = document.getElementById('prod-room').value;
+  if (select.value === '__ADD_NEW_SPOT__') {
+    if (!parentRoom || parentRoom === '__ADD_NEW_ROOM__') {
+      alert('Please select a Main Room first.');
+      select.value = '';
+      return;
+    }
+    promptAddSpot(parentRoom);
+  }
+}
+
+// 3. CATEGORY MANAGER & LOCATION MANAGER INTERACTIVE LOGIC
+function renderCategoryManager() {
+  const container = document.getElementById('category-manager-list');
+  if (!container) return;
+  const categories = JSON.parse(localStorage.getItem('categories') || '[]');
+  
+  if (categories.length === 0) {
+    container.innerHTML = `<div class="empty-msg">No categories created yet.</div>`;
+    return;
+  }
+
+  container.innerHTML = categories.map((cat, catIdx) => `
+    <div class="cat-card">
+      <div class="cat-card-header">
+        <span class="cat-card-title">${escapeHtml(cat.name)}</span>
+        <div class="cat-card-actions">
+          <button class="btn-icon btn-add-sub" onclick="promptAddSubCategory('${escapeHtml(cat.name)}')" title="Add Sub-Category">+</button>
+          <button class="btn-icon btn-del-cat" onclick="deleteCategory(${catIdx})" title="Delete Category">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          </button>
+        </div>
+      </div>
+      <div class="cat-card-body">
+        <div class="sub-pill-list">
+          ${(cat.subs || []).map((sub, subIdx) => `
+            <span class="sub-pill">
+              ${escapeHtml(sub)}
+              <button class="pill-remove" onclick="deleteSubCategory(${catIdx},${subIdx})">&times;</button>
+            </span>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderLocationManager() {
+  const container = document.getElementById('location-manager-list');
+  if (!container) return;
+  const locations = JSON.parse(localStorage.getItem('locations') || '[]');
+  
+  if (locations.length === 0) {
+    container.innerHTML = `<div class="empty-msg">No locations created yet.</div>`;
+    return;
+  }
+
+  container.innerHTML = locations.map((loc, locIdx) => `
+    <div class="cat-card">
+      <div class="cat-card-header">
+        <span class="cat-card-title">${escapeHtml(loc.name)}</span>
+        <div class="cat-card-actions">
+          <button class="btn-icon btn-add-sub" onclick="promptAddSpot('${escapeHtml(loc.name)}')" title="Add Storage Spot">+</button>
+          <button class="btn-icon btn-del-cat" onclick="deleteRoom(${locIdx})" title="Delete Room">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          </button>
+        </div>
+      </div>
+      <div class="cat-card-body">
+        <div class="sub-pill-list">
+          ${(loc.spots || []).map((spot, spotIdx) => `
+            <span class="sub-pill">
+              ${escapeHtml(spot)}
+              <button class="pill-remove" onclick="deleteSpot(${locIdx},${spotIdx})">&times;</button>
+            </span>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// PROMPT HELPER FUNCTIONS
+function promptAddCategory() {
+  const name = prompt('Enter new Category Name:');
+  if (name && name.trim()) {
+    const trimmed = name.trim();
+    let categories = JSON.parse(localStorage.getItem('categories') || '[]');
+    if (!categories.some(c => c.name.toLowerCase() === trimmed.toLowerCase())) {
+      categories.push({ name: trimmed, subs: [] });
+      saveAndSync('categories', categories);
+      showToast('Category added!');
+    }
+    renderCategoryDropdown(trimmed);
+    renderCategoryManager();
+  } else {
+    renderCategoryDropdown();
+  }
+}
+
+function promptAddSubCategory(catName) {
+  const name = prompt(`Enter new Sub-Category for "${catName}":`);
+  if (name && name.trim()) {
+    const trimmed = name.trim();
+    let categories = JSON.parse(localStorage.getItem('categories') || '[]');
+    const cat = categories.find(c => c.name === catName);
+    if (cat) {
+      if (!cat.subs) cat.subs = [];
+      if (!cat.subs.some(s => s.toLowerCase() === trimmed.toLowerCase())) {
+        cat.subs.push(trimmed);
+        saveAndSync('categories', categories);
+        showToast('Sub-category added!');
+      }
+    }
+    renderCategoryDropdown(catName);
+    renderSubCategoryDropdown(catName, trimmed);
+    renderCategoryManager();
+  } else {
+    renderSubCategoryDropdown(catName);
+  }
+}
+
+function promptAddRoom() {
+  const name = prompt('Enter new Room Name:');
+  if (name && name.trim()) {
+    const trimmed = name.trim();
+    let locations = JSON.parse(localStorage.getItem('locations') || '[]');
+    if (!locations.some(l => l.name.toLowerCase() === trimmed.toLowerCase())) {
+      locations.push({ name: trimmed, spots: [] });
+      saveAndSync('locations', locations);
+      showToast('Room added!');
+    }
+    renderRoomDropdown(trimmed);
+    renderLocationManager();
+  } else {
+    renderRoomDropdown();
+  }
+}
+
+function promptAddSpot(roomName) {
+  const name = prompt(`Enter new Storage Spot for "${roomName}":`);
+  if (name && name.trim()) {
+    const trimmed = name.trim();
+    let locations = JSON.parse(localStorage.getItem('locations') || '[]');
+    const loc = locations.find(l => l.name === roomName);
+    if (loc) {
+      if (!loc.spots) loc.spots = [];
+      if (!loc.spots.some(s => s.toLowerCase() === trimmed.toLowerCase())) {
+        loc.spots.push(trimmed);
+        saveAndSync('locations', locations);
+        showToast('Storage spot added!');
+      }
+    }
+    renderRoomDropdown(roomName);
+    renderSpotDropdown(roomName, trimmed);
+    renderLocationManager();
+  } else {
+    renderSpotDropdown(roomName);
+  }
+}
+
+function deleteCategory(idx) {
+  if (confirm('Delete this main category and all its sub-categories?')) {
+    let categories = JSON.parse(localStorage.getItem('categories') || '[]');
+    categories.splice(idx, 1);
+    saveAndSync('categories', categories);
+    renderAllDropdowns();
+    renderCategoryManager();
+    showToast('Category deleted');
+  }
+}
+
+function deleteSubCategory(catIdx, subIdx) {
+  let categories = JSON.parse(localStorage.getItem('categories') || '[]');
+  if (categories[catIdx] && categories[catIdx].subs) {
+    categories[catIdx].subs.splice(subIdx, 1);
+    saveAndSync('categories', categories);
+    renderAllDropdowns();
+    renderCategoryManager();
+    showToast('Sub-category removed');
+  }
+}
+
+function deleteRoom(idx) {
+  if (confirm('Delete this main room and all its storage spots?')) {
+    let locations = JSON.parse(localStorage.getItem('locations') || '[]');
+    locations.splice(idx, 1);
+    saveAndSync('locations', locations);
+    renderAllDropdowns();
+    renderLocationManager();
+    showToast('Room deleted');
+  }
+}
+
+function deleteSpot(locIdx, spotIdx) {
+  let locations = JSON.parse(localStorage.getItem('locations') || '[]');
+  if (locations[locIdx] && locations[locIdx].spots) {
+    locations[locIdx].spots.splice(spotIdx, 1);
+    saveAndSync('locations', locations);
+    renderAllDropdowns();
+    renderLocationManager();
+    showToast('Storage spot removed');
+  }
+}
+
+// 4. INVENTORY FORM HANDLERS
+function handleFormSubmit(e) {
+  e.preventDefault();
+  const id = document.getElementById('prod-id').value || Date.now().toString();
+  
   const productData = {
-    id: id || 'prod_' + Date.now(),
+    id,
     name: document.getElementById('prod-name').value.trim(),
     brand: document.getElementById('prod-brand').value.trim(),
-    categoryId: document.getElementById('prod-cat').value,
+    category: document.getElementById('prod-cat').value,
     subCategory: document.getElementById('prod-subcat').value,
-    roomId: document.getElementById('prod-room').value,
+    room: document.getElementById('prod-room').value,
     spot: document.getElementById('prod-spot').value,
     size: document.getElementById('prod-size').value.trim(),
     price: document.getElementById('prod-price').value,
-    quantity: Number(document.getElementById('prod-qty').value) || 0,
+    qty: parseInt(document.getElementById('prod-qty').value, 10) || 0,
     status: document.getElementById('prod-status').value,
-    openedDate: document.getElementById('prod-opened').value,
+    dateOpened: document.getElementById('prod-opened').value,
     pao: document.getElementById('prod-pao').value,
-    expiryDate: document.getElementById('prod-expiry').value,
-    repurchase: document.getElementById('prod-repurchase').value
+    expDate: document.getElementById('prod-exp').value,
+    repurchase: document.getElementById('prod-repurch').value
   };
 
-  if (id) {
-    const idx = products.findIndex(p => p.id === id);
-    if (idx !== -1) products[idx] = productData;
+  let products = JSON.parse(localStorage.getItem('products') || '[]');
+  const existingIdx = products.findIndex(p => p.id === id);
+  if (existingIdx > -1) {
+    products[existingIdx] = productData;
   } else {
     products.push(productData);
   }
 
-  saveToCloud(); // Push updated state to Firebase
-  showToast(id ? 'Product updated successfully' : 'Product added successfully');
+  saveAndSync('products', products);
+  updateDatalists();
   resetForm();
+  renderDashboard();
+  renderInventory();
+  renderShoppingList();
   switchTab('inventory');
+  showToast('Product saved!');
+}
+
+function resetForm() {
+  document.getElementById('product-form').reset();
+  document.getElementById('prod-id').value = '';
+  document.getElementById('form-title').innerText = 'Add New Product';
+  document.getElementById('save-btn').innerText = 'Save Product';
+  renderAllDropdowns();
 }
 
 function editProduct(id) {
+  const products = JSON.parse(localStorage.getItem('products') || '[]');
   const p = products.find(prod => prod.id === id);
   if (!p) return;
 
   document.getElementById('prod-id').value = p.id;
   document.getElementById('prod-name').value = p.name || '';
   document.getElementById('prod-brand').value = p.brand || '';
+  
+  renderCategoryDropdown(p.category || '');
+  renderSubCategoryDropdown(p.category || '', p.subCategory || '');
+  renderRoomDropdown(p.room || '');
+  renderSpotDropdown(p.room || '', p.spot || '');
+
   document.getElementById('prod-size').value = p.size || '';
   document.getElementById('prod-price').value = p.price || '';
-  document.getElementById('prod-qty').value = p.quantity ?? 1;
+  document.getElementById('prod-qty').value = p.qty ?? 1;
   document.getElementById('prod-status').value = p.status || 'In Stock';
-  document.getElementById('prod-opened').value = p.openedDate || '';
+  document.getElementById('prod-opened').value = p.dateOpened || '';
   document.getElementById('prod-pao').value = p.pao || '';
-  document.getElementById('prod-expiry').value = p.expiryDate || '';
-  document.getElementById('prod-repurchase').value = p.repurchase || 'Maybe';
+  document.getElementById('prod-exp').value = p.expDate || '';
+  document.getElementById('prod-repurch').value = p.repurchase || '';
 
-  populateDropdowns();
-  document.getElementById('prod-cat').value = p.categoryId || '';
-  handleCategoryChange();
-  document.getElementById('prod-subcat').value = p.subCategory || '';
-
-  document.getElementById('prod-room').value = p.roomId || '';
-  handleRoomChange();
-  document.getElementById('prod-spot').value = p.spot || '';
-
-  document.getElementById('form-title').textContent = 'Edit Product';
-  switchTab('add-product');
+  document.getElementById('form-title').innerText = 'Edit Product';
+  document.getElementById('save-btn').innerText = 'Update Product';
+  switchTab('add');
 }
 
 function deleteProduct(id) {
-  if (confirm('Are you sure you want to delete this product?')) {
+  if (confirm('Delete this product?')) {
+    let products = JSON.parse(localStorage.getItem('products') || '[]');
     products = products.filter(p => p.id !== id);
-    saveToCloud(); // Auto push deletion to Firebase
+    saveAndSync('products', products);
+    renderDashboard();
+    renderInventory();
+    renderShoppingList();
     showToast('Product deleted');
   }
 }
 
-function resetForm() {
-  document.getElementById('product-form').reset();
-  document.getElementById('prod-id').value = '';
-  document.getElementById('form-title').textContent = 'Add New Product';
-}
-
-/* ==========================================================================
-   Dropdowns & Dynamic Inline Creation
-   ========================================================================== */
-function populateDropdowns() {
-  const catSelect = document.getElementById('prod-cat');
-  if (catSelect) {
-    catSelect.innerHTML = '<option value="">Select Category</option>' +
-      categories.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('') +
-      '<option value="__NEW__">+ Add New Category...</option>';
-  }
-
-  const roomSelect = document.getElementById('prod-room');
-  if (roomSelect) {
-    roomSelect.innerHTML = '<option value="">Select Room</option>' +
-      rooms.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('') +
-      '<option value="__NEW__">+ Add New Room...</option>';
+function changeQty(id, delta) {
+  let products = JSON.parse(localStorage.getItem('products') || '[]');
+  const p = products.find(prod => prod.id === id);
+  if (p) {
+    p.qty = Math.max(0, (p.qty || 0) + delta);
+    saveAndSync('products', products);
+    renderDashboard();
+    renderInventory();
+    renderShoppingList();
   }
 }
 
-function handleCategoryChange() {
-  const catSelect = document.getElementById('prod-cat');
-  const subSelect = document.getElementById('prod-subcat');
-  if (!catSelect || !subSelect) return;
+// 5. INVENTORY & DASHBOARD RENDERING
+function renderDashboard() {
+  const products = JSON.parse(localStorage.getItem('products') || '[]');
+  const today = new Date().toISOString().split('T')[0];
+  const thirtyDaysOut = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-  if (catSelect.value === '__NEW__') {
-    const newName = prompt('Enter new category name:');
-    if (newName) {
-      const newCat = { id: 'c_' + Date.now(), name: newName.trim(), subcategories: [] };
-      categories.push(newCat);
-      saveToCloud();
-      populateDropdowns();
-      catSelect.value = newCat.id;
-    } else {
-      catSelect.value = '';
-    }
-  }
+  const total = products.length;
+  const low = products.filter(p => p.qty <= 1 && p.status !== 'Finished').length;
+  const expired = products.filter(p => p.expDate && p.expDate < today).length;
+  const expiring = products.filter(p => p.expDate && p.expDate >= today && p.expDate <= thirtyDaysOut).length;
 
-  const selectedCat = categories.find(c => c.id === catSelect.value);
-  if (selectedCat) {
-    subSelect.innerHTML = '<option value="">Select Sub-Category</option>' +
-      selectedCat.subcategories.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('') +
-      '<option value="__NEW__">+ Add New Sub-Category...</option>';
-  } else {
-    subSelect.innerHTML = '<option value="">Select Sub-Category</option>';
-  }
+  const totalEl = document.getElementById('dash-total');
+  const lowEl = document.getElementById('dash-low');
+  const expiringEl = document.getElementById('dash-expiring');
+  const expiredEl = document.getElementById('dash-expired');
+
+  if (totalEl) totalEl.innerText = total;
+  if (lowEl) lowEl.innerText = low;
+  if (expiringEl) expiringEl.innerText = expiring;
+  if (expiredEl) expiredEl.innerText = expired;
 }
 
-function handleSubCategoryChange() {
-  const catSelect = document.getElementById('prod-cat');
-  const subSelect = document.getElementById('prod-subcat');
-  if (subSelect.value === '__NEW__') {
-    const selectedCat = categories.find(c => c.id === catSelect.value);
-    if (!selectedCat) {
-      alert('Please select a main category first.');
-      subSelect.value = '';
-      return;
-    }
-    const newSubName = prompt('Enter new sub-category name:');
-    if (newSubName) {
-      selectedCat.subcategories.push(newSubName.trim());
-      saveToCloud();
-      handleCategoryChange();
-      subSelect.value = newSubName.trim();
-    } else {
-      subSelect.value = '';
-    }
-  }
-}
-
-function handleRoomChange() {
-  const roomSelect = document.getElementById('prod-room');
-  const spotSelect = document.getElementById('prod-spot');
-  if (!roomSelect || !spotSelect) return;
-
-  if (roomSelect.value === '__NEW__') {
-    const newRoomName = prompt('Enter new room name:');
-    if (newRoomName) {
-      const newRoom = { id: 'r_' + Date.now(), name: newRoomName.trim(), spots: [] };
-      rooms.push(newRoom);
-      saveToCloud();
-      populateDropdowns();
-      roomSelect.value = newRoom.id;
-    } else {
-      roomSelect.value = '';
-    }
-  }
-
-  const selectedRoom = rooms.find(r => r.id === roomSelect.value);
-  if (selectedRoom) {
-    spotSelect.innerHTML = '<option value="">Select Storage Spot</option>' +
-      selectedRoom.spots.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('') +
-      '<option value="__NEW__">+ Add New Storage Spot...</option>';
-  } else {
-    spotSelect.innerHTML = '<option value="">Select Storage Spot</option>';
-  }
-}
-
-function handleSpotChange() {
-  const roomSelect = document.getElementById('prod-room');
-  const spotSelect = document.getElementById('prod-spot');
-  if (spotSelect.value === '__NEW__') {
-    const selectedRoom = rooms.find(r => r.id === roomSelect.value);
-    if (!selectedRoom) {
-      alert('Please select a main room first.');
-      spotSelect.value = '';
-      return;
-    }
-    const newSpotName = prompt('Enter new storage spot name:');
-    if (newSpotName) {
-      selectedRoom.spots.push(newSpotName.trim());
-      saveToCloud();
-      handleRoomChange();
-      spotSelect.value = newSpotName.trim();
-    } else {
-      spotSelect.value = '';
-    }
-  }
-}
-
-function updateDatalists() {
-  const names = [...new Set(products.map(p => p.name).filter(Boolean))];
-  const brands = [...new Set(products.map(p => p.brand).filter(Boolean))];
-  const sizes = [...new Set(products.map(p => p.size).filter(Boolean))];
-
-  fillDatalist('dl-name', names);
-  fillDatalist('dl-brand', brands);
-  fillDatalist('dl-size', sizes);
-}
-
-function fillDatalist(id, items) {
-  const dl = document.getElementById(id);
-  if (dl) {
-    dl.innerHTML = items.map(item => `<option value="${escapeHtml(item)}"></option>`).join('');
-  }
-}
-
-/* ==========================================================================
-   Category & Location Management Views
-   ========================================================================== */
-function renderCategoryManager() {
-  const container = document.getElementById('category-list-container');
+function renderInventory() {
+  const container = document.getElementById('inventory-list');
   if (!container) return;
+  const products = JSON.parse(localStorage.getItem('products') || '[]');
+  const searchInput = document.getElementById('search-input');
+  const search = searchInput ? searchInput.value.toLowerCase() : '';
 
-  container.innerHTML = categories.map(cat => `
-    <div class="management-card">
-      <div class="card-header">
-        <h3>${escapeHtml(cat.name)}</h3>
-        <button class="btn-sm btn-danger" onclick="deleteCategory('${cat.id}')">Delete Category</button>
+  let filtered = products.filter(p => {
+    const matchesSearch = (p.name || '').toLowerCase().includes(search) || 
+                          (p.brand || '').toLowerCase().includes(search);
+    const matchesStatus = activeFilterStatus === 'all' || p.status === activeFilterStatus;
+    return matchesSearch && matchesStatus;
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML = `<div class="empty-msg">No products found.</div>`;
+    return;
+  }
+
+  container.innerHTML = filtered.map(p => `
+    <div class="product-card ${p.qty <= 1 ? 'card-low-stock' : ''}">
+      <div class="product-top">
+        <div>
+          <div class="product-title">${escapeHtml(p.name)}</div>
+          <div class="product-sub">${escapeHtml(p.brand || 'No Brand')} ${p.size ? '&bull; ' + escapeHtml(p.size) : ''}</div>
+          <div class="loc-badge">${escapeHtml(p.room || '')} ${p.spot ? ' &rsaquo; ' + escapeHtml(p.spot) : ''}</div>
+        </div>
+        <span class="status-badge status-${(p.status || 'in-stock').toLowerCase().replace(/\s+/g, '-')}">${escapeHtml(p.status)}</span>
       </div>
-      <div class="pill-container">
-        ${cat.subcategories.map(sub => `
-          <span class="tag-pill">
-            ${escapeHtml(sub)}
-            <button onclick="deleteSubCategory('${cat.id}', '${escapeHtml(sub)}')">×</button>
-          </span>
-        `).join('')}
-        <button class="btn-sm" onclick="promptAddSubCategory('${cat.id}')">+ Sub-Category</button>
+
+      <div class="card-actions">
+        <div class="qty-controls">
+          <button class="btn-qty" onclick="changeQty('${p.id}', -1)">&minus;</button>
+          <span class="qty-val">${p.qty}</span>
+          <button class="btn-qty" onclick="changeQty('${p.id}', 1)">+</button>
+        </div>
+        <div class="action-btns">
+          <button class="btn-sm btn-edit" onclick="editProduct('${p.id}')">Edit</button>
+          <button class="btn-sm btn-delete" onclick="deleteProduct('${p.id}')">Delete</button>
+        </div>
       </div>
     </div>
   `).join('');
 }
 
-function promptAddCategory() {
-  const name = prompt('Enter new category name:');
-  if (name) {
-    categories.push({ id: 'c_' + Date.now(), name: name.trim(), subcategories: [] });
-    saveToCloud();
-  }
+function setFilter(status, btn) {
+  activeFilterStatus = status;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderInventory();
 }
 
-function deleteCategory(id) {
-  if (confirm('Delete this category and all its sub-categories?')) {
-    categories = categories.filter(c => c.id !== id);
-    saveToCloud();
-  }
-}
-
-function promptAddSubCategory(catId) {
-  const name = prompt('Enter sub-category name:');
-  const cat = categories.find(c => c.id === catId);
-  if (name && cat) {
-    cat.subcategories.push(name.trim());
-    saveToCloud();
-  }
-}
-
-function deleteSubCategory(catId, subName) {
-  const cat = categories.find(c => c.id === catId);
-  if (cat) {
-    cat.subcategories = cat.subcategories.filter(s => s !== subName);
-    saveToCloud();
-  }
-}
-
-function renderLocationManager() {
-  const container = document.getElementById('location-list-container');
+function renderShoppingList() {
+  const container = document.getElementById('shopping-list');
   if (!container) return;
-
-  container.innerHTML = rooms.map(room => `
-    <div class="management-card">
-      <div class="card-header">
-        <h3>${escapeHtml(room.name)}</h3>
-        <button class="btn-sm btn-danger" onclick="deleteRoom('${room.id}')">Delete Room</button>
-      </div>
-      <div class="pill-container">
-        ${room.spots.map(spot => `
-          <span class="tag-pill">
-            ${escapeHtml(spot)}
-            <button onclick="deleteSpot('${room.id}', '${escapeHtml(spot)}')">×</button>
-          </span>
-        `).join('')}
-        <button class="btn-sm" onclick="promptAddSpot('${room.id}')">+ Storage Spot</button>
-      </div>
-    </div>
-  `).join('');
-}
-
-function promptAddRoom() {
-  const name = prompt('Enter new room name:');
-  if (name) {
-    rooms.push({ id: 'r_' + Date.now(), name: name.trim(), spots: [] });
-    saveToCloud();
-  }
-}
-
-function deleteRoom(id) {
-  if (confirm('Delete this room and all its storage spots?')) {
-    rooms = rooms.filter(r => r.id !== id);
-    saveToCloud();
-  }
-}
-
-function promptAddSpot(roomId) {
-  const name = prompt('Enter storage spot name:');
-  const room = rooms.find(r => r.id === roomId);
-  if (name && room) {
-    room.spots.push(name.trim());
-    saveToCloud();
-  }
-}
-
-function deleteSpot(roomId, spotName) {
-  const room = rooms.find(r => r.id === roomId);
-  if (room) {
-    room.spots = room.spots.filter(s => s !== spotName);
-    saveToCloud();
-  }
-}
-
-/* ==========================================================================
-   Reorder List Logic
-   ========================================================================== */
-function renderReorderList() {
-  const container = document.getElementById('reorder-list-container');
-  if (!container) return;
-
-  const reorderItems = products.filter(p => Number(p.quantity) <= 1 || p.repurchase === 'Yes');
+  const products = JSON.parse(localStorage.getItem('products') || '[]');
+  const reorderItems = products.filter(p => p.qty <= 1 || p.repurchase === 'Yes');
 
   if (reorderItems.length === 0) {
-    container.innerHTML = '<p class="empty-msg">No items need reordering right now.</p>';
+    container.innerHTML = `<div class="empty-msg">Your shopping list is clear!</div>`;
     return;
   }
 
   container.innerHTML = reorderItems.map(p => `
-    <div class="reorder-card">
-      <div>
-        <h3>${escapeHtml(p.name)}</h3>
-        <p class="card-sub">${escapeHtml(p.brand || 'No Brand')} • Current Stock: <strong>${p.quantity}</strong></p>
-      </div>
-      <div class="reorder-meta">
-        <span>$${p.price ? Number(p.price).toFixed(2) : '0.00'}</span>
-        <span class="status-pill">${p.repurchase === 'Yes' ? 'Worth Repurchasing' : 'Low Stock'}</span>
+    <div class="product-card">
+      <div class="product-top">
+        <div>
+          <div class="product-title">${escapeHtml(p.name)}</div>
+          <div class="product-sub">${escapeHtml(p.brand || '')} ${p.price ? ' &bull; $' + escapeHtml(p.price) : ''}</div>
+        </div>
+        <span class="status-badge status-using">Qty: ${p.qty}</span>
       </div>
     </div>
   `).join('');
 }
 
-/* ==========================================================================
-   Data Import, Export, & Reset (Settings)
-   ========================================================================== */
-function exportJSON() {
-  const data = { products, categories, rooms, exportedAt: new Date().toISOString() };
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
+// 6. GENERAL NAVIGATION & UTILITIES
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
 
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `inventory_backup_${new Date().toISOString().slice(0, 10)}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
+  const targetTab = document.getElementById(`tab-${tabId}`);
+  if (targetTab) targetTab.style.display = 'block';
+
+  const navBtns = document.querySelectorAll('.nav-tab');
+  const tabsOrder = ['dashboard', 'inventory', 'add', 'categories', 'locations', 'shopping', 'settings'];
+  const idx = tabsOrder.indexOf(tabId);
+  if (idx > -1 && navBtns[idx]) navBtns[idx].classList.add('active');
+
+  if (tabId === 'shopping') renderShoppingList();
 }
 
-function importJSON(event) {
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  if (!toast) return;
+  toast.innerText = msg;
+  toast.style.display = 'block';
+  setTimeout(() => { toast.style.display = 'none'; }, 2200);
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/[&<>"']/g, m => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[m]));
+}
+
+// SETTINGS & DATA PORTABILITY
+function exportData() {
+  const data = {
+    categories: JSON.parse(localStorage.getItem('categories') || '[]'),
+    locations: JSON.parse(localStorage.getItem('locations') || '[]'),
+    products: JSON.parse(localStorage.getItem('products') || '[]')
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `check_it_yourshelf_backup_${new Date().toISOString().split('T')[0]}.json`;
+  a.click();
+}
+
+function importData(event) {
   const file = event.target.files[0];
   if (!file) return;
-
   const reader = new FileReader();
-  reader.onload = function(e) {
+  reader.onload = (e) => {
     try {
-      const parsed = JSON.parse(e.target.result);
-      if (parsed.products && parsed.categories && parsed.rooms) {
-        products = parsed.products;
-        categories = parsed.categories;
-        rooms = parsed.rooms;
-        saveToCloud(); // Auto push imported JSON backup to Firebase
-        showToast('Database imported & synced to cloud!');
-      } else {
-        alert('Invalid JSON file format.');
+      const data = JSON.parse(e.target.result);
+      if (data.categories) localStorage.setItem('categories', JSON.stringify(data.categories));
+      if (data.locations) localStorage.setItem('locations', JSON.stringify(data.locations));
+      if (data.products) localStorage.setItem('products', JSON.stringify(data.products));
+      
+      if (typeof window.syncToFirestore === 'function') {
+        window.syncToFirestore(data.products, data.categories, data.locations);
       }
+      
+      window.renderAll();
+      showToast('Data imported and synced!');
     } catch (err) {
-      alert('Error parsing JSON backup file.');
+      alert('Invalid JSON File Format.');
     }
   };
   reader.readAsText(file);
 }
 
-function resetAllData() {
-  if (confirm('Are you sure you want to permanently clear all data across devices?')) {
-    products = [];
-    categories = [];
-    rooms = [];
-    saveToCloud();
-    showToast('Database cleared');
+function clearAllData() {
+  if (confirm('Are you sure you want to reset all data? This action cannot be undone.')) {
+    localStorage.clear();
+    if (typeof window.syncToFirestore === 'function') {
+      window.syncToFirestore([], DEFAULT_CATEGORIES, DEFAULT_LOCATIONS);
+    }
+    location.reload();
   }
 }
-
-/* ==========================================================================
-   Language Switcher & Utilities
-   ========================================================================== */
-function toggleLanguage() {
-  currentLang = currentLang === 'en' ? 'zh' : 'en';
-  localStorage.setItem('appLang', currentLang);
-  document.getElementById('lang-toggle-btn').textContent = currentLang === 'en' ? '繁體中文' : 'English';
-  showToast(currentLang === 'en' ? 'Switched to English' : '已切換至繁體中文');
-}
-
-function showToast(message) {
-  const toast = document.getElementById('toast');
-  if (toast) {
-    toast.textContent = message;
-    toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 2500);
-  }
-}
-
-function escapeHtml(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
-/* ==========================================================================
-   App Initialization
-   ========================================================================== */
-document.addEventListener('DOMContentLoaded', () => {
-  renderAllViews();
-  listenToCloudChanges(); // Start watching for cross-device updates
-});
