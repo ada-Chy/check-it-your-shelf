@@ -1,3 +1,32 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+import { 
+  getFirestore, 
+  collection, 
+  doc, 
+  onSnapshot, 
+  setDoc, 
+  addDoc, 
+  deleteDoc, 
+  updateDoc, 
+  getDocs,
+  writeBatch
+} from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyD9-RXk_3Lu-WIcQX3bYszqdAW0KbLqWO0",
+  authDomain: "check-it-yourshelf.firebaseapp.com",
+  databaseURL: "https://check-it-yourshelf-default-rtdb.firebaseio.com",
+  projectId: "check-it-yourshelf",
+  storageBucket: "check-it-yourshelf.firebasestorage.app",
+  messagingSenderId: "233293179677",
+  appId: "1:233293179677:web:3d75068654065ee8938ff4"
+};
+
+// Initialize Firebase & Firestore
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
 // INITIAL DEFAULT DATA
 const DEFAULT_CATEGORIES = [
   { name: 'Skincare', subs: ['Cleansing', 'Toner & Essence', 'Serums & Ampoules', 'Eye Cream', 'Moisturizer', 'Sunscreen', 'Masks'] },
@@ -13,61 +42,68 @@ const DEFAULT_LOCATIONS = [
   { name: 'Kitchen', spots: ['Pantry', 'Cabinet Above Sink', 'Fridge'] }
 ];
 
+// STATE STORE
+let categoriesData = [];
+let locationsData = [];
+let productsData = [];
 let activeFilterStatus = 'all';
 
-// APPLICATION INITIALIZATION
+// APPLICATION INITIALIZATION & FIRESTORE REALTIME LISTENERS
 document.addEventListener('DOMContentLoaded', () => {
-  initStorage();
-  updateDatalists();
-  renderAllDropdowns();
-  renderDashboard();
-  renderInventory();
-  renderCategoryManager();
-  renderLocationManager();
+  initFirestoreListeners();
 });
 
-function initStorage() {
-  if (!localStorage.getItem('categories')) {
-    localStorage.setItem('categories', JSON.stringify(DEFAULT_CATEGORIES));
-  }
-  if (!localStorage.getItem('locations')) {
-    localStorage.setItem('locations', JSON.stringify(DEFAULT_LOCATIONS));
-  }
-  if (!localStorage.getItem('products')) {
-    localStorage.setItem('products', JSON.stringify([]));
+function initFirestoreListeners() {
+  // 1. Categories Listener
+  onSnapshot(collection(db, "categories"), async (snapshot) => {
+    if (snapshot.empty) {
+      await seedDefaultCategories();
+      return;
+    }
+    categoriesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    renderAllDropdowns();
+    renderCategoryManager();
+  });
+
+  // 2. Locations Listener
+  onSnapshot(collection(db, "locations"), async (snapshot) => {
+    if (snapshot.empty) {
+      await seedDefaultLocations();
+      return;
+    }
+    locationsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    renderAllDropdowns();
+    renderLocationManager();
+  });
+
+  // 3. Products Listener
+  onSnapshot(collection(db, "products"), (snapshot) => {
+    productsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    updateDatalists();
+    renderDashboard();
+    renderInventory();
+    renderShoppingList();
+  });
+}
+
+// SEED INITIAL DEFAULT DATA TO FIRESTORE IF EMPTY
+async function seedDefaultCategories() {
+  for (const cat of DEFAULT_CATEGORIES) {
+    await addDoc(collection(db, "categories"), cat);
   }
 }
 
-// HELPER: LOCAL STORAGE + FIRESTORE SYNC WRAPPER
-function saveAndSync(key, value) {
-  localStorage.setItem(key, JSON.stringify(value));
-  if (typeof window.syncToFirestore === 'function') {
-    window.syncToFirestore();
+async function seedDefaultLocations() {
+  for (const loc of DEFAULT_LOCATIONS) {
+    await addDoc(collection(db, "locations"), loc);
   }
 }
-
-// FIRESTORE REAL-TIME CALLBACKS TO REFRESH UI
-window.loadAllData = function() {
-  initStorage();
-};
-
-window.renderAll = function() {
-  updateDatalists();
-  renderAllDropdowns();
-  renderDashboard();
-  renderInventory();
-  renderCategoryManager();
-  renderLocationManager();
-  renderShoppingList();
-};
 
 // 1. AUTO-PREDICTION DATALIST POPULATION
 function updateDatalists() {
-  const products = JSON.parse(localStorage.getItem('products') || '[]');
-  
-  const names = [...new Set(products.map(p => p.name).filter(Boolean))];
-  const brands = [...new Set(products.map(p => p.brand).filter(Boolean))];
-  const sizes = [...new Set(products.map(p => p.size).filter(Boolean))];
+  const names = [...new Set(productsData.map(p => p.name).filter(Boolean))];
+  const brands = [...new Set(productsData.map(p => p.brand).filter(Boolean))];
+  const sizes = [...new Set(productsData.map(p => p.size).filter(Boolean))];
 
   populateDatalist('prod-name-list', names);
   populateDatalist('prod-brand-list', brands);
@@ -91,10 +127,9 @@ function renderAllDropdowns() {
 function renderCategoryDropdown(selectedCat = '') {
   const select = document.getElementById('prod-cat');
   if (!select) return;
-  const categories = JSON.parse(localStorage.getItem('categories') || '[]');
   
   let html = '<option value="">-- Select Category --</option>';
-  categories.forEach(c => {
+  categoriesData.forEach(c => {
     const sel = c.name === selectedCat ? 'selected' : '';
     html += `<option value="${escapeHtml(c.name)}" ${sel}>${escapeHtml(c.name)}</option>`;
   });
@@ -107,8 +142,8 @@ function renderCategoryDropdown(selectedCat = '') {
 function renderSubCategoryDropdown(categoryName, selectedSub = '') {
   const select = document.getElementById('prod-subcat');
   if (!select) return;
-  const categories = JSON.parse(localStorage.getItem('categories') || '[]');
-  const catObj = categories.find(c => c.name === categoryName);
+  
+  const catObj = categoriesData.find(c => c.name === categoryName);
   
   let html = '<option value="">-- Select Sub-Category --</option>';
   if (catObj && catObj.subs) {
@@ -124,10 +159,9 @@ function renderSubCategoryDropdown(categoryName, selectedSub = '') {
 function renderRoomDropdown(selectedRoom = '') {
   const select = document.getElementById('prod-room');
   if (!select) return;
-  const locations = JSON.parse(localStorage.getItem('locations') || '[]');
-  
+
   let html = '<option value="">-- Select Main Room --</option>';
-  locations.forEach(l => {
+  locationsData.forEach(l => {
     const sel = l.name === selectedRoom ? 'selected' : '';
     html += `<option value="${escapeHtml(l.name)}" ${sel}>${escapeHtml(l.name)}</option>`;
   });
@@ -140,8 +174,8 @@ function renderRoomDropdown(selectedRoom = '') {
 function renderSpotDropdown(roomName, selectedSpot = '') {
   const select = document.getElementById('prod-spot');
   if (!select) return;
-  const locations = JSON.parse(localStorage.getItem('locations') || '[]');
-  const roomObj = locations.find(l => l.name === roomName);
+
+  const roomObj = locationsData.find(l => l.name === roomName);
   
   let html = '<option value="">-- Select Storage Spot --</option>';
   if (roomObj && roomObj.spots) {
@@ -155,15 +189,15 @@ function renderSpotDropdown(roomName, selectedSpot = '') {
 }
 
 // DROPDOWN CHANGE EVENT HANDLERS
-function handleCategoryChange(select) {
+window.handleCategoryChange = function(select) {
   if (select.value === '__ADD_NEW_CAT__') {
     promptAddCategory();
   } else {
     renderSubCategoryDropdown(select.value);
   }
-}
+};
 
-function handleSubCategoryChange(select) {
+window.handleSubCategoryChange = function(select) {
   const parentCat = document.getElementById('prod-cat').value;
   if (select.value === '__ADD_NEW_SUBCAT__') {
     if (!parentCat || parentCat === '__ADD_NEW_CAT__') {
@@ -173,17 +207,17 @@ function handleSubCategoryChange(select) {
     }
     promptAddSubCategory(parentCat);
   }
-}
+};
 
-function handleRoomChange(select) {
+window.handleRoomChange = function(select) {
   if (select.value === '__ADD_NEW_ROOM__') {
     promptAddRoom();
   } else {
     renderSpotDropdown(select.value);
   }
-}
+};
 
-function handleSpotChange(select) {
+window.handleSpotChange = function(select) {
   const parentRoom = document.getElementById('prod-room').value;
   if (select.value === '__ADD_NEW_SPOT__') {
     if (!parentRoom || parentRoom === '__ADD_NEW_ROOM__') {
@@ -193,26 +227,25 @@ function handleSpotChange(select) {
     }
     promptAddSpot(parentRoom);
   }
-}
+};
 
 // 3. CATEGORY MANAGER & LOCATION MANAGER INTERACTIVE LOGIC
 function renderCategoryManager() {
   const container = document.getElementById('category-manager-list');
   if (!container) return;
-  const categories = JSON.parse(localStorage.getItem('categories') || '[]');
-  
-  if (categories.length === 0) {
+
+  if (categoriesData.length === 0) {
     container.innerHTML = `<div class="empty-msg">No categories created yet.</div>`;
     return;
   }
 
-  container.innerHTML = categories.map((cat, catIdx) => `
+  container.innerHTML = categoriesData.map((cat) => `
     <div class="cat-card">
       <div class="cat-card-header">
         <span class="cat-card-title">${escapeHtml(cat.name)}</span>
         <div class="cat-card-actions">
           <button class="btn-icon btn-add-sub" onclick="promptAddSubCategory('${escapeHtml(cat.name)}')" title="Add Sub-Category">+</button>
-          <button class="btn-icon btn-del-cat" onclick="deleteCategory(${catIdx})" title="Delete Category">
+          <button class="btn-icon btn-del-cat" onclick="deleteCategory('${cat.id}')" title="Delete Category">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
           </button>
         </div>
@@ -222,7 +255,7 @@ function renderCategoryManager() {
           ${(cat.subs || []).map((sub, subIdx) => `
             <span class="sub-pill">
               ${escapeHtml(sub)}
-              <button class="pill-remove" onclick="deleteSubCategory(${catIdx},${subIdx})">&times;</button>
+              <button class="pill-remove" onclick="deleteSubCategory('${cat.id}',${subIdx})">&times;</button>
             </span>
           `).join('')}
         </div>
@@ -234,20 +267,19 @@ function renderCategoryManager() {
 function renderLocationManager() {
   const container = document.getElementById('location-manager-list');
   if (!container) return;
-  const locations = JSON.parse(localStorage.getItem('locations') || '[]');
-  
-  if (locations.length === 0) {
+
+  if (locationsData.length === 0) {
     container.innerHTML = `<div class="empty-msg">No locations created yet.</div>`;
     return;
   }
 
-  container.innerHTML = locations.map((loc, locIdx) => `
+  container.innerHTML = locationsData.map((loc) => `
     <div class="cat-card">
       <div class="cat-card-header">
         <span class="cat-card-title">${escapeHtml(loc.name)}</span>
         <div class="cat-card-actions">
           <button class="btn-icon btn-add-sub" onclick="promptAddSpot('${escapeHtml(loc.name)}')" title="Add Storage Spot">+</button>
-          <button class="btn-icon btn-del-cat" onclick="deleteRoom(${locIdx})" title="Delete Room">
+          <button class="btn-icon btn-del-cat" onclick="deleteRoom('${loc.id}')" title="Delete Room">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
           </button>
         </div>
@@ -257,7 +289,7 @@ function renderLocationManager() {
           ${(loc.spots || []).map((spot, spotIdx) => `
             <span class="sub-pill">
               ${escapeHtml(spot)}
-              <button class="pill-remove" onclick="deleteSpot(${locIdx},${spotIdx})">&times;</button>
+              <button class="pill-remove" onclick="deleteSpot('${loc.id}',${spotIdx})">&times;</button>
             </span>
           `).join('')}
         </div>
@@ -266,136 +298,101 @@ function renderLocationManager() {
   `).join('');
 }
 
-// PROMPT HELPER FUNCTIONS
-function promptAddCategory() {
+// PROMPT HELPER FUNCTIONS (FIRESTORE MUTATIONS)
+window.promptAddCategory = async function() {
   const name = prompt('Enter new Category Name:');
   if (name && name.trim()) {
     const trimmed = name.trim();
-    let categories = JSON.parse(localStorage.getItem('categories') || '[]');
-    if (!categories.some(c => c.name.toLowerCase() === trimmed.toLowerCase())) {
-      categories.push({ name: trimmed, subs: [] });
-      saveAndSync('categories', categories);
+    if (!categoriesData.some(c => c.name.toLowerCase() === trimmed.toLowerCase())) {
+      await addDoc(collection(db, "categories"), { name: trimmed, subs: [] });
       showToast('Category added!');
     }
-    renderCategoryDropdown(trimmed);
-    renderCategoryManager();
-  } else {
-    renderCategoryDropdown();
   }
-}
+};
 
-function promptAddSubCategory(catName) {
+window.promptAddSubCategory = async function(catName) {
   const name = prompt(`Enter new Sub-Category for "${catName}":`);
   if (name && name.trim()) {
     const trimmed = name.trim();
-    let categories = JSON.parse(localStorage.getItem('categories') || '[]');
-    const cat = categories.find(c => c.name === catName);
+    const cat = categoriesData.find(c => c.name === catName);
     if (cat) {
-      if (!cat.subs) cat.subs = [];
-      if (!cat.subs.some(s => s.toLowerCase() === trimmed.toLowerCase())) {
-        cat.subs.push(trimmed);
-        saveAndSync('categories', categories);
+      const updatedSubs = cat.subs || [];
+      if (!updatedSubs.some(s => s.toLowerCase() === trimmed.toLowerCase())) {
+        updatedSubs.push(trimmed);
+        await updateDoc(doc(db, "categories", cat.id), { subs: updatedSubs });
         showToast('Sub-category added!');
       }
     }
-    renderCategoryDropdown(catName);
-    renderSubCategoryDropdown(catName, trimmed);
-    renderCategoryManager();
-  } else {
-    renderSubCategoryDropdown(catName);
   }
-}
+};
 
-function promptAddRoom() {
+window.promptAddRoom = async function() {
   const name = prompt('Enter new Room Name:');
   if (name && name.trim()) {
     const trimmed = name.trim();
-    let locations = JSON.parse(localStorage.getItem('locations') || '[]');
-    if (!locations.some(l => l.name.toLowerCase() === trimmed.toLowerCase())) {
-      locations.push({ name: trimmed, spots: [] });
-      saveAndSync('locations', locations);
+    if (!locationsData.some(l => l.name.toLowerCase() === trimmed.toLowerCase())) {
+      await addDoc(collection(db, "locations"), { name: trimmed, spots: [] });
       showToast('Room added!');
     }
-    renderRoomDropdown(trimmed);
-    renderLocationManager();
-  } else {
-    renderRoomDropdown();
   }
-}
+};
 
-function promptAddSpot(roomName) {
+window.promptAddSpot = async function(roomName) {
   const name = prompt(`Enter new Storage Spot for "${roomName}":`);
   if (name && name.trim()) {
     const trimmed = name.trim();
-    let locations = JSON.parse(localStorage.getItem('locations') || '[]');
-    const loc = locations.find(l => l.name === roomName);
+    const loc = locationsData.find(l => l.name === roomName);
     if (loc) {
-      if (!loc.spots) loc.spots = [];
-      if (!loc.spots.some(s => s.toLowerCase() === trimmed.toLowerCase())) {
-        loc.spots.push(trimmed);
-        saveAndSync('locations', locations);
+      const updatedSpots = loc.spots || [];
+      if (!updatedSpots.some(s => s.toLowerCase() === trimmed.toLowerCase())) {
+        updatedSpots.push(trimmed);
+        await updateDoc(doc(db, "locations", loc.id), { spots: updatedSpots });
         showToast('Storage spot added!');
       }
     }
-    renderRoomDropdown(roomName);
-    renderSpotDropdown(roomName, trimmed);
-    renderLocationManager();
-  } else {
-    renderSpotDropdown(roomName);
   }
-}
+};
 
-function deleteCategory(idx) {
+window.deleteCategory = async function(catId) {
   if (confirm('Delete this main category and all its sub-categories?')) {
-    let categories = JSON.parse(localStorage.getItem('categories') || '[]');
-    categories.splice(idx, 1);
-    saveAndSync('categories', categories);
-    renderAllDropdowns();
-    renderCategoryManager();
+    await deleteDoc(doc(db, "categories", catId));
     showToast('Category deleted');
   }
-}
+};
 
-function deleteSubCategory(catIdx, subIdx) {
-  let categories = JSON.parse(localStorage.getItem('categories') || '[]');
-  if (categories[catIdx] && categories[catIdx].subs) {
-    categories[catIdx].subs.splice(subIdx, 1);
-    saveAndSync('categories', categories);
-    renderAllDropdowns();
-    renderCategoryManager();
+window.deleteSubCategory = async function(catId, subIdx) {
+  const cat = categoriesData.find(c => c.id === catId);
+  if (cat && cat.subs) {
+    const updatedSubs = [...cat.subs];
+    updatedSubs.splice(subIdx, 1);
+    await updateDoc(doc(db, "categories", catId), { subs: updatedSubs });
     showToast('Sub-category removed');
   }
-}
+};
 
-function deleteRoom(idx) {
+window.deleteRoom = async function(locId) {
   if (confirm('Delete this main room and all its storage spots?')) {
-    let locations = JSON.parse(localStorage.getItem('locations') || '[]');
-    locations.splice(idx, 1);
-    saveAndSync('locations', locations);
-    renderAllDropdowns();
-    renderLocationManager();
+    await deleteDoc(doc(db, "locations", locId));
     showToast('Room deleted');
   }
-}
+};
 
-function deleteSpot(locIdx, spotIdx) {
-  let locations = JSON.parse(localStorage.getItem('locations') || '[]');
-  if (locations[locIdx] && locations[locIdx].spots) {
-    locations[locIdx].spots.splice(spotIdx, 1);
-    saveAndSync('locations', locations);
-    renderAllDropdowns();
-    renderLocationManager();
+window.deleteSpot = async function(locId, spotIdx) {
+  const loc = locationsData.find(l => l.id === locId);
+  if (loc && loc.spots) {
+    const updatedSpots = [...loc.spots];
+    updatedSpots.splice(spotIdx, 1);
+    await updateDoc(doc(db, "locations", locId), { spots: updatedSpots });
     showToast('Storage spot removed');
   }
-}
+};
 
 // 4. INVENTORY FORM HANDLERS
-function handleFormSubmit(e) {
+window.handleFormSubmit = async function(e) {
   e.preventDefault();
-  const id = document.getElementById('prod-id').value || Date.now().toString();
+  const id = document.getElementById('prod-id').value;
   
   const productData = {
-    id,
     name: document.getElementById('prod-name').value.trim(),
     brand: document.getElementById('prod-brand').value.trim(),
     category: document.getElementById('prod-cat').value,
@@ -412,35 +409,27 @@ function handleFormSubmit(e) {
     repurchase: document.getElementById('prod-repurch').value
   };
 
-  let products = JSON.parse(localStorage.getItem('products') || '[]');
-  const existingIdx = products.findIndex(p => p.id === id);
-  if (existingIdx > -1) {
-    products[existingIdx] = productData;
+  if (id) {
+    await updateDoc(doc(db, "products", id), productData);
   } else {
-    products.push(productData);
+    await addDoc(collection(db, "products"), productData);
   }
 
-  saveAndSync('products', products);
-  updateDatalists();
   resetForm();
-  renderDashboard();
-  renderInventory();
-  renderShoppingList();
   switchTab('inventory');
   showToast('Product saved!');
-}
+};
 
-function resetForm() {
+window.resetForm = function() {
   document.getElementById('product-form').reset();
   document.getElementById('prod-id').value = '';
   document.getElementById('form-title').innerText = 'Add New Product';
   document.getElementById('save-btn').innerText = 'Save Product';
   renderAllDropdowns();
-}
+};
 
-function editProduct(id) {
-  const products = JSON.parse(localStorage.getItem('products') || '[]');
-  const p = products.find(prod => prod.id === id);
+window.editProduct = function(id) {
+  const p = productsData.find(prod => prod.id === id);
   if (!p) return;
 
   document.getElementById('prod-id').value = p.id;
@@ -464,62 +453,45 @@ function editProduct(id) {
   document.getElementById('form-title').innerText = 'Edit Product';
   document.getElementById('save-btn').innerText = 'Update Product';
   switchTab('add');
-}
+};
 
-function deleteProduct(id) {
+window.deleteProduct = async function(id) {
   if (confirm('Delete this product?')) {
-    let products = JSON.parse(localStorage.getItem('products') || '[]');
-    products = products.filter(p => p.id !== id);
-    saveAndSync('products', products);
-    renderDashboard();
-    renderInventory();
-    renderShoppingList();
+    await deleteDoc(doc(db, "products", id));
     showToast('Product deleted');
   }
-}
+};
 
-function changeQty(id, delta) {
-  let products = JSON.parse(localStorage.getItem('products') || '[]');
-  const p = products.find(prod => prod.id === id);
+window.changeQty = async function(id, delta) {
+  const p = productsData.find(prod => prod.id === id);
   if (p) {
-    p.qty = Math.max(0, (p.qty || 0) + delta);
-    saveAndSync('products', products);
-    renderDashboard();
-    renderInventory();
-    renderShoppingList();
+    const newQty = Math.max(0, (p.qty || 0) + delta);
+    await updateDoc(doc(db, "products", id), { qty: newQty });
   }
-}
+};
 
 // 5. INVENTORY & DASHBOARD RENDERING
 function renderDashboard() {
-  const products = JSON.parse(localStorage.getItem('products') || '[]');
   const today = new Date().toISOString().split('T')[0];
   const thirtyDaysOut = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-  const total = products.length;
-  const low = products.filter(p => p.qty <= 1 && p.status !== 'Finished').length;
-  const expired = products.filter(p => p.expDate && p.expDate < today).length;
-  const expiring = products.filter(p => p.expDate && p.expDate >= today && p.expDate <= thirtyDaysOut).length;
+  const total = productsData.length;
+  const low = productsData.filter(p => p.qty <= 1 && p.status !== 'Finished').length;
+  const expired = productsData.filter(p => p.expDate && p.expDate < today).length;
+  const expiring = productsData.filter(p => p.expDate && p.expDate >= today && p.expDate <= thirtyDaysOut).length;
 
-  const totalEl = document.getElementById('dash-total');
-  const lowEl = document.getElementById('dash-low');
-  const expiringEl = document.getElementById('dash-expiring');
-  const expiredEl = document.getElementById('dash-expired');
-
-  if (totalEl) totalEl.innerText = total;
-  if (lowEl) lowEl.innerText = low;
-  if (expiringEl) expiringEl.innerText = expiring;
-  if (expiredEl) expiredEl.innerText = expired;
+  document.getElementById('dash-total').innerText = total;
+  document.getElementById('dash-low').innerText = low;
+  document.getElementById('dash-expiring').innerText = expiring;
+  document.getElementById('dash-expired').innerText = expired;
 }
 
-function renderInventory() {
+window.renderInventory = function() {
   const container = document.getElementById('inventory-list');
   if (!container) return;
-  const products = JSON.parse(localStorage.getItem('products') || '[]');
-  const searchInput = document.getElementById('search-input');
-  const search = searchInput ? searchInput.value.toLowerCase() : '';
+  const search = (document.getElementById('search-input')?.value || '').toLowerCase();
 
-  let filtered = products.filter(p => {
+  let filtered = productsData.filter(p => {
     const matchesSearch = (p.name || '').toLowerCase().includes(search) || 
                           (p.brand || '').toLowerCase().includes(search);
     const matchesStatus = activeFilterStatus === 'all' || p.status === activeFilterStatus;
@@ -555,20 +527,20 @@ function renderInventory() {
       </div>
     </div>
   `).join('');
-}
+};
 
-function setFilter(status, btn) {
+window.setFilter = function(status, btn) {
   activeFilterStatus = status;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   renderInventory();
-}
+};
 
 function renderShoppingList() {
   const container = document.getElementById('shopping-list');
   if (!container) return;
-  const products = JSON.parse(localStorage.getItem('products') || '[]');
-  const reorderItems = products.filter(p => p.qty <= 1 || p.repurchase === 'Yes');
+
+  const reorderItems = productsData.filter(p => p.qty <= 1 || p.repurchase === 'Yes');
 
   if (reorderItems.length === 0) {
     container.innerHTML = `<div class="empty-msg">Your shopping list is clear!</div>`;
@@ -589,7 +561,7 @@ function renderShoppingList() {
 }
 
 // 6. GENERAL NAVIGATION & UTILITIES
-function switchTab(tabId) {
+window.switchTab = function(tabId) {
   document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
 
@@ -602,7 +574,7 @@ function switchTab(tabId) {
   if (idx > -1 && navBtns[idx]) navBtns[idx].classList.add('active');
 
   if (tabId === 'shopping') renderShoppingList();
-}
+};
 
 function showToast(msg) {
   const toast = document.getElementById('toast');
@@ -619,50 +591,66 @@ function escapeHtml(str) {
   }[m]));
 }
 
-// SETTINGS & DATA PORTABILITY
-function exportData() {
+// SETTINGS & DATA PORTABILITY (FIRESTORE BASED)
+window.exportData = function() {
   const data = {
-    categories: JSON.parse(localStorage.getItem('categories') || '[]'),
-    locations: JSON.parse(localStorage.getItem('locations') || '[]'),
-    products: JSON.parse(localStorage.getItem('products') || '[]')
+    categories: categoriesData,
+    locations: locationsData,
+    products: productsData
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `check_it_yourshelf_backup_${new Date().toISOString().split('T')[0]}.json`;
   a.click();
-}
+};
 
-function importData(event) {
+window.importData = async function(event) {
   const file = event.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     try {
       const data = JSON.parse(e.target.result);
-      if (data.categories) localStorage.setItem('categories', JSON.stringify(data.categories));
-      if (data.locations) localStorage.setItem('locations', JSON.stringify(data.locations));
-      if (data.products) localStorage.setItem('products', JSON.stringify(data.products));
-      
-      if (typeof window.syncToFirestore === 'function') {
-        window.syncToFirestore(data.products, data.categories, data.locations);
+      if (data.categories) {
+        for (const cat of data.categories) {
+          const { id, ...item } = cat;
+          await addDoc(collection(db, "categories"), item);
+        }
       }
-      
-      window.renderAll();
-      showToast('Data imported and synced!');
+      if (data.locations) {
+        for (const loc of data.locations) {
+          const { id, ...item } = loc;
+          await addDoc(collection(db, "locations"), item);
+        }
+      }
+      if (data.products) {
+        for (const prod of data.products) {
+          const { id, ...item } = prod;
+          await addDoc(collection(db, "products"), item);
+        }
+      }
+      showToast('Data imported successfully!');
     } catch (err) {
       alert('Invalid JSON File Format.');
     }
   };
   reader.readAsText(file);
-}
+};
 
-function clearAllData() {
-  if (confirm('Are you sure you want to reset all data? This action cannot be undone.')) {
-    localStorage.clear();
-    if (typeof window.syncToFirestore === 'function') {
-      window.syncToFirestore([], DEFAULT_CATEGORIES, DEFAULT_LOCATIONS);
-    }
-    location.reload();
+window.clearAllData = async function() {
+  if (confirm('Are you sure you want to reset all data in Firestore? This action cannot be undone.')) {
+    const deleteCollection = async (collName) => {
+      const snapshot = await getDocs(collection(db, collName));
+      const batch = writeBatch(db);
+      snapshot.docs.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    };
+
+    await deleteCollection("categories");
+    await deleteCollection("locations");
+    await deleteCollection("products");
+
+    showToast('All data cleared.');
   }
-}
+};
