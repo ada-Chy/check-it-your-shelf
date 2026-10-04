@@ -9,6 +9,8 @@ import {
   deleteDoc, 
   updateDoc, 
   getDocs,
+  query,
+  where,
   writeBatch
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
@@ -26,11 +28,10 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// SHARED HOUSEHOLD SYNC KEY (Ensures cross-device sync on the same database)
-const HOUSEHOLD_ID = localStorage.getItem('yourshelf_household_id') || 'default_household';
-localStorage.setItem('yourshelf_household_id', HOUSEHOLD_ID);
+// HOUSEHOLD SYNC KEY FOR CROSS-DEVICE SHARING
+let HOUSEHOLD_ID = localStorage.getItem('yourshelf_household_id') || 'default_household';
 
-// DEFAULT DATA SETS
+// PRE-DEFINED DEFAULT DATA
 const DEFAULT_CATEGORIES = [
   { name: 'Skincare', subs: ['Cleansing', 'Toner & Essence', 'Serums & Ampoules', 'Eye Cream', 'Moisturizer', 'Sunscreen', 'Masks'] },
   { name: 'Cosmetics & Makeup', subs: ['Face Base', 'Eye Makeup', 'Lips', 'Blush & Contour'] },
@@ -45,20 +46,59 @@ const DEFAULT_LOCATIONS = [
   { name: 'Kitchen', spots: ['Pantry', 'Cabinet Above Sink', 'Fridge'] }
 ];
 
-// STATE STORE
+// STATE
 let categoriesData = [];
 let locationsData = [];
 let productsData = [];
 let activeFilterStatus = 'all';
 
-// APPLICATION INITIALIZATION
+let unsubs = [];
+
+// INITIALIZATION
 document.addEventListener('DOMContentLoaded', () => {
+  setupHouseholdSyncInput();
   initFirestoreListeners();
 });
 
+function setupHouseholdSyncInput() {
+  const settingsCard = document.querySelector('#tab-settings .form-grid');
+  if (settingsCard && !document.getElementById('sync-code-input')) {
+    const syncGroup = document.createElement('div');
+    syncGroup.style.gridColumn = '1 / -1';
+    syncGroup.style.marginBottom = '15px';
+    syncGroup.innerHTML = `
+      <label style="font-weight:bold; display:block; margin-bottom:5px;">Household Sync Key (Cross-Device):</label>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="sync-code-input" value="${escapeHtml(HOUSEHOLD_ID)}" style="flex:1; padding:8px; border:1px solid #ccc; border-radius:6px;">
+        <button type="button" class="btn-primary" onclick="changeHouseholdKey()">Update Key</button>
+      </div>
+      <small style="color:#666;">Enter the exact same key on all devices to share catalog, locations, and inventory.</small>
+    `;
+    settingsCard.prepend(syncGroup);
+  }
+}
+
+window.changeHouseholdKey = function() {
+  const newKey = document.getElementById('sync-code-input').value.trim();
+  if (newKey && newKey !== HOUSEHOLD_ID) {
+    HOUSEHOLD_ID = newKey;
+    localStorage.setItem('yourshelf_household_id', HOUSEHOLD_ID);
+    showToast(`Sync Key set to: ${HOUSEHOLD_ID}`);
+    initFirestoreListeners();
+  }
+};
+
 function initFirestoreListeners() {
-  // 1. Categories Realtime Listener
-  onSnapshot(collection(db, "households", HOUSEHOLD_ID, "categories"), async (snapshot) => {
+  // Unsubscribe old listeners if key changed
+  unsubs.forEach(unsub => unsub());
+  unsubs = [];
+
+  const catQuery = query(collection(db, "categories"), where("householdId", "==", HOUSEHOLD_ID));
+  const locQuery = query(collection(db, "locations"), where("householdId", "==", HOUSEHOLD_ID));
+  const prodQuery = query(collection(db, "products"), where("householdId", "==", HOUSEHOLD_ID));
+
+  // 1. Categories
+  const unsubCat = onSnapshot(catQuery, async (snapshot) => {
     if (snapshot.empty) {
       await seedDefaultCategories();
       return;
@@ -67,9 +107,10 @@ function initFirestoreListeners() {
     renderAllDropdowns();
     renderCategoryManager();
   });
+  unsubs.push(unsubCat);
 
-  // 2. Locations Realtime Listener
-  onSnapshot(collection(db, "households", HOUSEHOLD_ID, "locations"), async (snapshot) => {
+  // 2. Locations
+  const unsubLoc = onSnapshot(locQuery, async (snapshot) => {
     if (snapshot.empty) {
       await seedDefaultLocations();
       return;
@@ -78,37 +119,33 @@ function initFirestoreListeners() {
     renderAllDropdowns();
     renderLocationManager();
   });
+  unsubs.push(unsubLoc);
 
-  // 3. Products Realtime Listener
-  onSnapshot(collection(db, "households", HOUSEHOLD_ID, "products"), (snapshot) => {
+  // 3. Products
+  const unsubProd = onSnapshot(prodQuery, (snapshot) => {
     productsData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     updateDatalists();
     renderDashboard();
     renderInventory();
     renderShoppingList();
   });
+  unsubs.push(unsubProd);
 }
 
-// SEED DEFAULTS TO FIRESTORE
+// SEED DEFAULTS WITH HOUSEHOLD ID
 async function seedDefaultCategories() {
-  const batch = writeBatch(db);
-  DEFAULT_CATEGORIES.forEach(cat => {
-    const ref = doc(collection(db, "households", HOUSEHOLD_ID, "categories"));
-    batch.set(ref, cat);
-  });
-  await batch.commit();
+  for (const cat of DEFAULT_CATEGORIES) {
+    await addDoc(collection(db, "categories"), { ...cat, householdId: HOUSEHOLD_ID });
+  }
 }
 
 async function seedDefaultLocations() {
-  const batch = writeBatch(db);
-  DEFAULT_LOCATIONS.forEach(loc => {
-    const ref = doc(collection(db, "households", HOUSEHOLD_ID, "locations"));
-    batch.set(ref, loc);
-  });
-  await batch.commit();
+  for (const loc of DEFAULT_LOCATIONS) {
+    await addDoc(collection(db, "locations"), { ...loc, householdId: HOUSEHOLD_ID });
+  }
 }
 
-// DATALIST AUTO-PREDICTION
+// AUTO-PREDICTION DATALISTS
 function updateDatalists() {
   const names = [...new Set(productsData.map(p => p.name).filter(Boolean))];
   const brands = [...new Set(productsData.map(p => p.brand).filter(Boolean))];
@@ -125,7 +162,7 @@ function populateDatalist(elementId, items) {
   listElement.innerHTML = items.map(item => `<option value="${escapeHtml(item)}">`).join('');
 }
 
-// DROPDOWN RENDERERS
+// DROPDOWNS
 function renderAllDropdowns() {
   renderCategoryDropdown();
   renderRoomDropdown();
@@ -195,7 +232,7 @@ function renderSpotDropdown(roomName, selectedSpot = '') {
   select.innerHTML = html;
 }
 
-// DROPDOWN CHANGE HANDLERS
+// EVENT HANDLERS FOR SELECT ONCHANGE
 window.handleCategoryChange = function(select) {
   if (select.value === '__ADD_NEW_CAT__') {
     select.value = '';
@@ -238,7 +275,7 @@ window.handleSpotChange = function(select) {
   }
 };
 
-// CATEGORY & LOCATION MANAGERS
+// CATEGORY AND LOCATION MANAGERS
 function renderCategoryManager() {
   const container = document.getElementById('category-manager-list');
   if (!container) return;
@@ -307,13 +344,13 @@ function renderLocationManager() {
   `).join('');
 }
 
-// PROMPT & FIRESTORE MUTATIONS
+// PROMPT ACTIONS (FIRESTORE MUTATIONS)
 window.promptAddCategory = async function() {
   const name = prompt('Enter new Category Name:');
   if (name && name.trim()) {
     const trimmed = name.trim();
     if (!categoriesData.some(c => c.name.toLowerCase() === trimmed.toLowerCase())) {
-      await addDoc(collection(db, "households", HOUSEHOLD_ID, "categories"), { name: trimmed, subs: [] });
+      await addDoc(collection(db, "categories"), { name: trimmed, subs: [], householdId: HOUSEHOLD_ID });
       showToast('Category added!');
     }
   }
@@ -328,7 +365,7 @@ window.promptAddSubCategory = async function(catName) {
       const updatedSubs = cat.subs ? [...cat.subs] : [];
       if (!updatedSubs.some(s => s.toLowerCase() === trimmed.toLowerCase())) {
         updatedSubs.push(trimmed);
-        await updateDoc(doc(db, "households", HOUSEHOLD_ID, "categories", cat.id), { subs: updatedSubs });
+        await updateDoc(doc(db, "categories", cat.id), { subs: updatedSubs });
         showToast('Sub-category added!');
       }
     }
@@ -340,7 +377,7 @@ window.promptAddRoom = async function() {
   if (name && name.trim()) {
     const trimmed = name.trim();
     if (!locationsData.some(l => l.name.toLowerCase() === trimmed.toLowerCase())) {
-      await addDoc(collection(db, "households", HOUSEHOLD_ID, "locations"), { name: trimmed, spots: [] });
+      await addDoc(collection(db, "locations"), { name: trimmed, spots: [], householdId: HOUSEHOLD_ID });
       showToast('Room added!');
     }
   }
@@ -355,7 +392,7 @@ window.promptAddSpot = async function(roomName) {
       const updatedSpots = loc.spots ? [...loc.spots] : [];
       if (!updatedSpots.some(s => s.toLowerCase() === trimmed.toLowerCase())) {
         updatedSpots.push(trimmed);
-        await updateDoc(doc(db, "households", HOUSEHOLD_ID, "locations", loc.id), { spots: updatedSpots });
+        await updateDoc(doc(db, "locations", loc.id), { spots: updatedSpots });
         showToast('Storage spot added!');
       }
     }
@@ -364,7 +401,7 @@ window.promptAddSpot = async function(roomName) {
 
 window.deleteCategory = async function(catId) {
   if (confirm('Delete this main category and all its sub-categories?')) {
-    await deleteDoc(doc(db, "households", HOUSEHOLD_ID, "categories", catId));
+    await deleteDoc(doc(db, "categories", catId));
     showToast('Category deleted');
   }
 };
@@ -374,14 +411,14 @@ window.deleteSubCategory = async function(catId, subIdx) {
   if (cat && cat.subs) {
     const updatedSubs = [...cat.subs];
     updatedSubs.splice(subIdx, 1);
-    await updateDoc(doc(db, "households", HOUSEHOLD_ID, "categories", catId), { subs: updatedSubs });
+    await updateDoc(doc(db, "categories", catId), { subs: updatedSubs });
     showToast('Sub-category removed');
   }
 };
 
 window.deleteRoom = async function(locId) {
   if (confirm('Delete this main room and all its storage spots?')) {
-    await deleteDoc(doc(db, "households", HOUSEHOLD_ID, "locations", locId));
+    await deleteDoc(doc(db, "locations", locId));
     showToast('Room deleted');
   }
 };
@@ -391,17 +428,18 @@ window.deleteSpot = async function(locId, spotIdx) {
   if (loc && loc.spots) {
     const updatedSpots = [...loc.spots];
     updatedSpots.splice(spotIdx, 1);
-    await updateDoc(doc(db, "households", HOUSEHOLD_ID, "locations", locId), { spots: updatedSpots });
+    await updateDoc(doc(db, "locations", locId), { spots: updatedSpots });
     showToast('Storage spot removed');
   }
 };
 
-// FORM & INVENTORY HANDLERS
+// PRODUCT FORM & INVENTORY
 window.handleFormSubmit = async function(e) {
   e.preventDefault();
   const id = document.getElementById('prod-id').value;
   
   const productData = {
+    householdId: HOUSEHOLD_ID,
     name: document.getElementById('prod-name').value.trim(),
     brand: document.getElementById('prod-brand').value.trim(),
     category: document.getElementById('prod-cat').value,
@@ -419,9 +457,9 @@ window.handleFormSubmit = async function(e) {
   };
 
   if (id) {
-    await updateDoc(doc(db, "households", HOUSEHOLD_ID, "products", id), productData);
+    await updateDoc(doc(db, "products", id), productData);
   } else {
-    await addDoc(collection(db, "households", HOUSEHOLD_ID, "products"), productData);
+    await addDoc(collection(db, "products"), productData);
   }
 
   resetForm();
@@ -466,7 +504,7 @@ window.editProduct = function(id) {
 
 window.deleteProduct = async function(id) {
   if (confirm('Delete this product?')) {
-    await deleteDoc(doc(db, "households", HOUSEHOLD_ID, "products", id));
+    await deleteDoc(doc(db, "products", id));
     showToast('Product deleted');
   }
 };
@@ -475,11 +513,11 @@ window.changeQty = async function(id, delta) {
   const p = productsData.find(prod => prod.id === id);
   if (p) {
     const newQty = Math.max(0, (p.qty || 0) + delta);
-    await updateDoc(doc(db, "households", HOUSEHOLD_ID, "products", id), { qty: newQty });
+    await updateDoc(doc(db, "products", id), { qty: newQty });
   }
 };
 
-// UI RENDERING & TABS
+// DASHBOARD & INVENTORY RENDERING
 function renderDashboard() {
   const today = new Date().toISOString().split('T')[0];
   const thirtyDaysOut = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -599,7 +637,7 @@ function escapeHtml(str) {
   }[m]));
 }
 
-// MULTI-DEVICE SYNC SETTINGS & DATA EXPORT/IMPORT
+// IMPORT / EXPORT / CLEAR
 window.exportData = function() {
   const data = { categories: categoriesData, locations: locationsData, products: productsData };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -619,19 +657,19 @@ window.importData = async function(event) {
       if (data.categories) {
         for (const cat of data.categories) {
           const { id, ...item } = cat;
-          await addDoc(collection(db, "households", HOUSEHOLD_ID, "categories"), item);
+          await addDoc(collection(db, "categories"), { ...item, householdId: HOUSEHOLD_ID });
         }
       }
       if (data.locations) {
         for (const loc of data.locations) {
           const { id, ...item } = loc;
-          await addDoc(collection(db, "households", HOUSEHOLD_ID, "locations"), item);
+          await addDoc(collection(db, "locations"), { ...item, householdId: HOUSEHOLD_ID });
         }
       }
       if (data.products) {
         for (const prod of data.products) {
           const { id, ...item } = prod;
-          await addDoc(collection(db, "households", HOUSEHOLD_ID, "products"), item);
+          await addDoc(collection(db, "products"), { ...item, householdId: HOUSEHOLD_ID });
         }
       }
       showToast('Data imported successfully!');
@@ -643,17 +681,18 @@ window.importData = async function(event) {
 };
 
 window.clearAllData = async function() {
-  if (confirm('Are you sure you want to reset all data in Firestore? This action cannot be undone.')) {
-    const deleteCollection = async (collName) => {
-      const snapshot = await getDocs(collection(db, "households", HOUSEHOLD_ID, collName));
+  if (confirm('Are you sure you want to reset all data for this Household Sync Key?')) {
+    const deleteByQuery = async (collName) => {
+      const q = query(collection(db, collName), where("householdId", "==", HOUSEHOLD_ID));
+      const snapshot = await getDocs(q);
       const batch = writeBatch(db);
       snapshot.docs.forEach((d) => batch.delete(d.ref));
       await batch.commit();
     };
 
-    await deleteCollection("categories");
-    await deleteCollection("locations");
-    await deleteCollection("products");
+    await deleteByQuery("categories");
+    await deleteByQuery("locations");
+    await deleteByQuery("products");
 
     showToast('All data cleared.');
   }
