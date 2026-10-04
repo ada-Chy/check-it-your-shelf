@@ -27,12 +27,6 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  // Allow external Firebase SDK modules to load online directly
-  if (e.request.url.includes('gstatic.com') || e.request.url.includes('firebaseio.com')) {
-    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
-    return;
-  }
-
   e.respondWith(
     caches.match(e.request).then((res) => res || fetch(e.request))
   );
